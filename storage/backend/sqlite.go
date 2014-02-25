@@ -95,11 +95,6 @@ func (s *Sqlite) configDB() (db *sql.DB, err error) {
 			domain_id INTEGER NOT NULL,
 			path      TEXT NOT NULL
 		)`,
-		`CREATE TABLE robot_rules (
-			rule_id   INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
-			domain_id INTEGER NOT NULL,
-			rule      TEXT NOT NULL
-		)`,
 	}
 	for _, create := range creates {
 		if _, err = db.Exec(create); err != nil {

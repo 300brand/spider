@@ -5,7 +5,11 @@ import (
 	"net/http/cookiejar"
 )
 
-const UserAgent = "GoSpiderBot (+http://github.com/300brand/spider)"
+const (
+	BotName   = "GoSpiderBot"
+	BotURL    = "http://github.com/300brand/spider"
+	UserAgent = BotName + " (+" + BotURL + ")"
+)
 
 var client = new(http.Client)
 

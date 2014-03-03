@@ -1,10 +1,12 @@
 package domain
 
 import (
+	"fmt"
 	"github.com/300brand/spider/download"
 	"github.com/300brand/spider/page"
 	"github.com/temoto/robotstxt-go"
 	"net/url"
+	"regexp"
 	"time"
 )
 
@@ -16,13 +18,30 @@ type Domain struct {
 	Delay       time.Duration // Delay between GETs to domain
 	robotRules  *robotstxt.Group
 	url         *url.URL
+	reExclude   []*regexp.Regexp
 }
 
 func (d *Domain) CanDownload(p *page.Page) bool {
+	path := p.GetURL().Path
+
 	if d.robotRules == nil {
 		d.UpdateRobotRules()
 	}
-	return d.robotRules.Test(p.GetURL().Path)
+	if !d.robotRules.Test(path) {
+		return false
+	}
+
+	if d.reExclude == nil {
+		d.UpdateRegexpRules()
+	}
+	for i := range d.reExclude {
+		fmt.Printf("Testing %s against %s\n", path, d.Exclude[i])
+		if d.reExclude[i].MatchString(path) {
+			return false
+		}
+	}
+
+	return true
 }
 
 func (d *Domain) GetURL() *url.URL {
@@ -30,6 +49,13 @@ func (d *Domain) GetURL() *url.URL {
 		d.url, _ = url.Parse(d.URL)
 	}
 	return d.url
+}
+
+func (d *Domain) UpdateRegexpRules() {
+	d.reExclude = make([]*regexp.Regexp, len(d.Exclude))
+	for i := range d.Exclude {
+		d.reExclude[i] = regexp.MustCompile(d.Exclude[i])
+	}
 }
 
 func (d *Domain) UpdateRobotRules() {

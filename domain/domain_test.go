@@ -16,9 +16,15 @@ func Test(t *testing.T) { gocheck.TestingT(t) }
 func (s *DomainSuite) TestRobotsTxt(c *gocheck.C) {
 	d := &Domain{
 		URL: samplesite.URL,
+		Exclude: []string{
+			"^/cont",
+		},
 	}
 	tests := map[string]bool{
-		"/": true,
+		"/":         true,
+		"/nospider": false,
+		"/article1": true,
+		"/contact":  false,
 	}
 
 	for path, canDL := range tests {

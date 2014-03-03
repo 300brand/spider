@@ -1,40 +1,56 @@
 package backend
 
 import (
+	"github.com/300brand/spider/config"
+	"github.com/300brand/spider/domain"
 	"github.com/300brand/spider/page"
+	"launchpad.net/gocheck"
 	"testing"
+	"time"
 )
 
-func TestSqlite(t *testing.T) {
-	b, err := NewSqlite("/tmp/testdb")
-	if err != nil {
-		t.Fatalf("New: %s", err)
-	}
-	defer b.Close()
-	testBackend(t, b)
-}
+func Test(t *testing.T) { gocheck.TestingT(t) }
 
-func testBackend(t *testing.T, b Backend) {
+func testBackend(c *gocheck.C, b Backend) {
+	// Test config in/out
+	cfg := new(config.Config)
+
+	c.Assert(b.GetConfig(cfg), gocheck.IsNil)
+
+	cfg.Domains = append(cfg.Domains, domain.Domain{
+		Name: "Google",
+		URL:  "http://google.com",
+		Exclude: []string{
+			"/exclude",
+			"/(do not|dont)_index_me",
+		},
+		StartPoints: []string{
+			"http://google.com/",
+			"http://google.com/starthere",
+		},
+		Delay: time.Minute,
+	})
+	c.Assert(b.SaveConfig(cfg), gocheck.IsNil)
+
+	outCfg := new(config.Config)
+	c.Assert(b.GetConfig(outCfg), gocheck.IsNil)
+	c.Assert(len(outCfg.Domains), gocheck.Equals, len(cfg.Domains))
+	c.Assert(len(outCfg.Domains[0].Exclude), gocheck.Equals, len(cfg.Domains[0].Exclude))
+	c.Assert(len(outCfg.Domains[0].StartPoints), gocheck.Equals, len(cfg.Domains[0].StartPoints))
+	c.Assert(outCfg.Domains[0].Name, gocheck.Equals, cfg.Domains[0].Name)
+	c.Assert(outCfg.Domains[0].URL, gocheck.Equals, cfg.Domains[0].URL)
+
+	// Test page in/out
 	url := "http://google.com/news.html"
 
 	p := new(page.Page)
-	if err := b.GetPage(url, p); err != NotFound {
-		t.Fatalf("GetPage: Expected NotFound error, got: %q", err)
-	}
-	if p != nil {
-		t.Fatalf("Pre-Store Should Not Exist: %s", url)
-	}
+	c.Assert(b.GetPage(url, p), gocheck.Equals, NotFound)
+	c.Assert(p.URL, gocheck.Equals, "")
 
 	p.URL = url
-	if err := b.SavePage(p); err != nil {
-		t.Fatalf("SavePage: %q", err)
-	}
+	c.Assert(b.SavePage(p), gocheck.IsNil)
 
-	p.URL = ""
-	if err := b.GetPage(url, p); err != nil {
-		t.Fatalf("GetPage: %q", err)
-	}
-	if p.URL != url {
-		t.Fatalf("GetPage: URLs do not match %s != %s", p.URL, url)
-	}
+	*p = page.Page{}
+	c.Assert(b.GetPage(url, p), gocheck.IsNil)
+	c.Assert(p.URL, gocheck.Equals, url)
 }

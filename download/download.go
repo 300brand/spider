@@ -18,11 +18,15 @@ func init() {
 	client.Jar, _ = cookiejar.New(nil)
 }
 
+func Do(req *http.Request) (resp *http.Response, err error) {
+	req.Header.Add("User-Agent", UserAgent)
+	return client.Do(req)
+}
+
 func Get(url string) (resp *http.Response, err error) {
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return
 	}
-	req.Header.Add("User-Agent", UserAgent)
-	return http.DefaultClient.Do(req)
+	return Do(req)
 }

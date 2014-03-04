@@ -7,6 +7,7 @@ import (
 	"github.com/temoto/robotstxt-go"
 	"net/url"
 	"regexp"
+	"strings"
 	"time"
 )
 
@@ -16,9 +17,18 @@ type Domain struct {
 	Exclude     []string      // Regex path exclusions from config
 	StartPoints []string      // Paths to being when link-spidering completes
 	Delay       time.Duration // Delay between GETs to domain
+	domainName  string
 	robotRules  *robotstxt.Group
 	url         *url.URL
 	reExclude   []*regexp.Regexp
+}
+
+func FromURL(rawurl string) (name string) {
+	u, _ := url.Parse(rawurl)
+	if strings.HasPrefix(u.Host, "www.") {
+		u.Host = u.Host[4:]
+	}
+	return u.Host
 }
 
 func (d *Domain) CanDownload(p *page.Page) bool {
@@ -42,6 +52,13 @@ func (d *Domain) CanDownload(p *page.Page) bool {
 	}
 
 	return true
+}
+
+func (d *Domain) Domain() (domainName string) {
+	if d.domainName == "" {
+		d.domainName = FromURL(d.URL)
+	}
+	return d.domainName
 }
 
 func (d *Domain) GetURL() *url.URL {

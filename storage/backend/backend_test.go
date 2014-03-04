@@ -44,7 +44,7 @@ func testBackend(c *gocheck.C, b Backend) {
 	url := "http://google.com/news.html"
 
 	p := new(page.Page)
-	c.Assert(b.GetPage(url, p), gocheck.Equals, NotFound)
+	c.Assert(b.GetPage(url, p), gocheck.Equals, ErrNotFound)
 	c.Assert(p.URL, gocheck.Equals, "")
 
 	p.URL = url

@@ -136,7 +136,7 @@ func (s *Sqlite) GetPage(url string, p *page.Page) (err error) {
 	)
 	if err == sql.ErrNoRows {
 		p.URL = ""
-		err = NotFound
+		err = ErrNotFound
 	}
 	p.FirstDownload = time.Unix(0, firstDownload)
 	p.LastDownload = time.Unix(0, lastDownload)
@@ -238,7 +238,7 @@ func (s *Sqlite) SavePage(p *page.Page) (err error) {
 
 func (s *Sqlite) getDB(name string) (db *sql.DB, err error) {
 	if name == "" {
-		return nil, NotFound
+		return nil, ErrNotFound
 	}
 
 	db, ok := s.dbs[name]

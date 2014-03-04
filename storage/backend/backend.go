@@ -6,7 +6,7 @@ import (
 	"github.com/300brand/spider/page"
 )
 
-var NotFound = errors.New("Not found")
+var ErrNotFound = errors.New("Not found")
 
 type Backend interface {
 	Close() error

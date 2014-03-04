@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"errors"
 	"github.com/300brand/spider/config"
 	"github.com/300brand/spider/page"
 	"github.com/300brand/spider/storage/backend"
@@ -9,6 +10,8 @@ import (
 type Storage struct {
 	Backend backend.Backend
 }
+
+var ErrNotFound = errors.New("Not found")
 
 func New(b backend.Backend) (s *Storage) {
 	return &Storage{

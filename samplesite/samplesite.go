@@ -6,7 +6,7 @@ import (
 	"net/http/httptest"
 )
 
-type Page struct {
+type page struct {
 	Title string
 	Links []string
 }
@@ -66,14 +66,14 @@ func init() {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/robots.txt", func(w http.ResponseWriter, r *http.Request) { w.Write(robotsBody) })
 
-	pages := map[string]Page{
-		"/":         Page{"Index", []string{"/article1", "/nospider", "/article2", "/article3"}},
-		"/latest":   Page{"Index", []string{"/article1", "/article2"}},
-		"/article1": Page{"Article 1", []string{"/article2", "/article3"}},
-		"/article2": Page{"Article 1", []string{"/article1", "/article3", "/nospider"}},
-		"/article3": Page{"Article 1", []string{"/article1", "/article2"}},
-		"/nospider": Page{"Don't Spider Me!", []string{}},
-		"/contact":  Page{"Contact Us", []string{}},
+	pages := map[string]page{
+		"/":         {"Index", []string{"/article1", "/nospider", "/article2", "/article3"}},
+		"/latest":   {"Index", []string{"/article1", "/article2"}},
+		"/article1": {"Article 1", []string{"/article2", "/article3"}},
+		"/article2": {"Article 1", []string{"/article1", "/article3", "/nospider"}},
+		"/article3": {"Article 1", []string{"/article1", "/article2"}},
+		"/nospider": {"Don't Spider Me!", []string{}},
+		"/contact":  {"Contact Us", []string{}},
 	}
 
 	for path, content := range pages {

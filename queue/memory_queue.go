@@ -5,6 +5,7 @@ import (
 )
 
 type memQueue struct {
+	Name  string
 	Queue []string
 	mutex sync.Mutex
 }
@@ -13,8 +14,17 @@ var _ Queue = new(memQueue)
 
 func NewMemoryQueue(prealloc int) (q *memQueue) {
 	return &memQueue{
+		Name:  "default",
 		Queue: make([]string, 0, prealloc),
 	}
+}
+
+func (q *memQueue) New(name string) Queue {
+	newQueue := &memQueue{
+		Name:  name,
+		Queue: make([]string, 0, len(q.Queue)),
+	}
+	return newQueue
 }
 
 func (q *memQueue) Dequeue() (s string, err error) {
@@ -32,4 +42,8 @@ func (q *memQueue) Enqueue(s string) (err error) {
 	defer q.mutex.Unlock()
 	q.Queue = append(q.Queue, s)
 	return
+}
+
+func (q *memQueue) Len() int {
+	return len(q.Queue)
 }

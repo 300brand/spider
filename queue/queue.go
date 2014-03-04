@@ -5,8 +5,10 @@ import (
 )
 
 type Queue interface {
-	Dequeue() (string, error)
-	Enqueue(string) error
+	New(name string) Queue
+	Dequeue() (v string, err error)
+	Enqueue(v string) (err error)
+	Len() int
 }
 
 var ErrEmpty = errors.New("Queue empty")

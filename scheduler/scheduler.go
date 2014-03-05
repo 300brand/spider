@@ -54,7 +54,7 @@ func (s *Scheduler) Cur(d *domain.Domain, p *page.Page) (err error) {
 	case nil:
 		return nil
 	case backend.ErrNotFound:
-		p.URL = s.curUrl
+		*p = page.Page{URL: s.curUrl}
 		return nil
 	default:
 		return err
@@ -113,6 +113,8 @@ func (s *Scheduler) Stop() {
 		s.shutdown <- true
 	}
 }
+
+func (s *Scheduler) Update(p *page.Page) (err error) { return s.store.SavePage(p) }
 
 func (s *Scheduler) notifier(d *domain.Domain) {
 	s.restart(d)

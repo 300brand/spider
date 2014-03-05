@@ -10,6 +10,7 @@ import (
 	"github.com/300brand/spider/storage/backend"
 	"launchpad.net/gocheck"
 	"testing"
+	"time"
 )
 
 type SchedulerSuite struct{}
@@ -42,17 +43,31 @@ func (s *SchedulerSuite) TestCrawl(c *gocheck.C) {
 	var d domain.Domain
 	for sch.Next() {
 		c.Check(sch.Cur(&d, &p), gocheck.IsNil)
-		c.Logf("Domain: %s Page: %s", d.URL, p.URL)
+		c.Logf("Domain: %s Page: %s LastDownload: %s", d.URL, p.URL, p.LastDownload)
 
 		if !d.CanDownload(&p) {
-			c.Logf("Skipping!")
+			c.Logf("\tShould not download, skipping!")
 			continue
 		}
 
-		c.Check(p.Download(), gocheck.IsNil)
+		if p.LastDownload.After(time.Now().Add(-time.Hour)) {
+			c.Logf("\tToo soon to re-download page, skipping!")
+			continue
+		}
+
+		switch err := p.Download(); err {
+		case nil:
+		case page.ErrNotModified:
+			continue
+		default:
+			c.Error(err)
+		}
+
+		c.Assert(sch.Update(&p), gocheck.IsNil)
+
 		links, err := p.Links()
 		c.Check(err, gocheck.IsNil)
-		c.Logf("Checksum: %d Links: %+v", p.Checksum, links)
+		c.Logf("\tChecksum: %d Links: %+v", p.Checksum, links)
 		for i := range links {
 			sch.Add(links[i])
 		}

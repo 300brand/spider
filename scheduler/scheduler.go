@@ -6,18 +6,21 @@ import (
 	"github.com/300brand/spider/page"
 	"github.com/300brand/spider/queue"
 	"github.com/300brand/spider/storage"
+	"github.com/300brand/spider/storage/backend"
 	"time"
 )
 
 type Scheduler struct {
+	config       *config.Config
 	curDomain    *domain.Domain
 	curUrl       string
 	defaultQueue queue.Queue
-	queues       map[string]queue.Queue
-	store        *storage.Storage
-	config       *config.Config
+	err          error
 	notify       chan *domain.Domain
+	once         bool
+	queues       map[string]queue.Queue
 	shutdown     chan bool
+	store        *storage.Storage
 }
 
 func New(q queue.Queue, store *storage.Storage) (s *Scheduler, err error) {
@@ -33,7 +36,8 @@ func New(q queue.Queue, store *storage.Storage) (s *Scheduler, err error) {
 
 	s.queues = make(map[string]queue.Queue, len(s.config.Domains))
 	s.notify = make(chan *domain.Domain, len(s.config.Domains))
-	s.shutdown = make(chan bool, len(s.config.Domains))
+	s.shutdown = make(chan bool, len(s.config.Domains)+1)
+	s.Start()
 
 	return
 }
@@ -44,10 +48,13 @@ func (s *Scheduler) Add(url string) (err error) {
 }
 
 func (s *Scheduler) Cur(d *domain.Domain, p *page.Page) (err error) {
-	d = s.curDomain
+	*d = *s.curDomain
 
 	switch err := s.store.GetPage(s.curUrl, p); err {
-	case nil, storage.ErrNotFound:
+	case nil:
+		return nil
+	case backend.ErrNotFound:
+		p.URL = s.curUrl
 		return nil
 	default:
 		return err
@@ -60,20 +67,36 @@ func (s *Scheduler) Next() bool {
 	if len(s.queues) == 0 {
 		return false
 	}
+
 	for {
 		select {
 		case d := <-s.notify:
 			url, err := s.queues[d.Domain()].Dequeue()
-			if err != nil {
-				// Queue empty..
+			switch err {
+			case nil:
+			case queue.ErrEmpty:
+				if s.once {
+					return false
+				}
+				// When the queue is (finally) empty, start over from the top
+				s.restart(d)
 				continue
+			default:
+				s.err = err
+				return false
 			}
 			s.curDomain = d
 			s.curUrl = url
 			return true
+		case <-s.shutdown:
+			return false
 		}
 	}
 	return false
+}
+
+func (s *Scheduler) Once() {
+	s.once = true
 }
 
 func (s *Scheduler) Start() {
@@ -85,18 +108,14 @@ func (s *Scheduler) Start() {
 }
 
 func (s *Scheduler) Stop() {
-	for _ = range s.config.Domains {
+	// <= because s.Next() needs to shutdown, too
+	for i := 0; i <= len(s.config.Domains); i++ {
 		s.shutdown <- true
 	}
 }
 
 func (s *Scheduler) notifier(d *domain.Domain) {
-	for i := range d.StartPoints {
-		s.Add(d.StartPoints[i])
-	}
-	if len(d.StartPoints) == 0 {
-		s.Add(d.URL)
-	}
+	s.restart(d)
 
 	for {
 		select {
@@ -105,5 +124,14 @@ func (s *Scheduler) notifier(d *domain.Domain) {
 		case <-s.shutdown:
 			return
 		}
+	}
+}
+
+func (s *Scheduler) restart(d *domain.Domain) {
+	for i := range d.StartPoints {
+		s.Add(d.StartPoints[i])
+	}
+	if len(d.StartPoints) == 0 {
+		s.Add(d.URL)
 	}
 }

@@ -76,6 +76,7 @@ func (s *Scheduler) Next() bool {
 			case nil:
 			case queue.ErrEmpty:
 				if s.once {
+					s.Stop()
 					return false
 				}
 				// When the queue is (finally) empty, start over from the top

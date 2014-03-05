@@ -1,7 +1,6 @@
 package domain
 
 import (
-	"fmt"
 	"github.com/300brand/spider/download"
 	"github.com/300brand/spider/page"
 	"github.com/temoto/robotstxt-go"
@@ -16,7 +15,8 @@ type Domain struct {
 	URL         string
 	Exclude     []string      // Regex path exclusions from config
 	StartPoints []string      // Paths to being when link-spidering completes
-	Delay       time.Duration // Delay between GETs to domain
+	Delay       time.Duration // Delay between GETs to domain (15s)
+	Redownload  time.Duration // Delay between re-downloading pages (3hr)
 	domainName  string
 	robotRules  *robotstxt.Group
 	url         *url.URL
@@ -31,7 +31,16 @@ func FromURL(rawurl string) (name string) {
 	return u.Host
 }
 
+// Performs a few checks to determine if this page should be downloaded. Checks
+// include:
+// - Check if page last download is within the Redownload duration
+// - Check if robots.txt blocks the page
+// - Check if the page's URL is in the Exclude list
 func (d *Domain) CanDownload(p *page.Page) bool {
+	if p.LastDownload.After(time.Now().Add(-d.Redownload)) {
+		return false
+	}
+
 	path := p.GetURL().Path
 
 	if d.robotRules == nil {
@@ -45,7 +54,6 @@ func (d *Domain) CanDownload(p *page.Page) bool {
 		d.UpdateRegexpRules()
 	}
 	for i := range d.reExclude {
-		fmt.Printf("Testing %s against %s\n", path, d.Exclude[i])
 		if d.reExclude[i].MatchString(path) {
 			return false
 		}

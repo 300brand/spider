@@ -41,9 +41,11 @@ var baseTmpl = `<!DOCTYPE html>
 		</nav>
 	</header>
 
-	<article>{{ range .Links }}
+	<article>
+{{ range .Links }}
 		<p><a href="{{ . }}">{{ . }}</a></p>
-	{{ end }}</article>
+{{ end }}
+	</article>
 
 	<footer>
 		<nav>
@@ -68,17 +70,17 @@ func init() {
 
 	pages := map[string]page{
 		"/":         {"Index", []string{"/article1", "/nospider", "/article2", "/article3"}},
-		"/latest":   {"Index", []string{"/article1", "/article2"}},
+		"/latest":   {"Latest", []string{"/article1", "/article2"}},
 		"/article1": {"Article 1", []string{"/article2", "/article3"}},
-		"/article2": {"Article 1", []string{"/article1", "/article3", "/nospider"}},
-		"/article3": {"Article 1", []string{"/article1", "/article2"}},
+		"/article2": {"Article 2", []string{"/article1", "/article3", "/nospider"}},
+		"/article3": {"Article 3", []string{"/article1", "/article2"}},
 		"/nospider": {"Don't Spider Me!", []string{}},
 		"/contact":  {"Contact Us", []string{}},
 	}
 
-	for path, content := range pages {
+	for path := range pages {
 		mux.HandleFunc(path, func(w http.ResponseWriter, r *http.Request) {
-			if err := base.Execute(w, content); err != nil {
+			if err := base.Execute(w, pages[r.RequestURI]); err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 			}
 		})

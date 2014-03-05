@@ -40,6 +40,11 @@ func (q *memQueue) Dequeue() (s string, err error) {
 func (q *memQueue) Enqueue(s string) (err error) {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
+	for i := range q.Queue {
+		if q.Queue[i] == s {
+			return ErrExists
+		}
+	}
 	q.Queue = append(q.Queue, s)
 	return
 }

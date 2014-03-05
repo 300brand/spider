@@ -11,4 +11,7 @@ type Queue interface {
 	Len() int
 }
 
-var ErrEmpty = errors.New("Queue empty")
+var (
+	ErrEmpty  = errors.New("Queue empty")
+	ErrExists = errors.New("Already in queue")
+)

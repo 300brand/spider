@@ -6,7 +6,7 @@ import (
 )
 
 type Memory struct {
-	config *config.Config
+	config config.Config
 	pages  map[string]page.Page
 }
 
@@ -14,8 +14,7 @@ var _ Backend = new(Memory)
 
 func NewMemory() (m *Memory, err error) {
 	m = &Memory{
-		config: new(config.Config),
-		pages:  make(map[string]page.Page),
+		pages: make(map[string]page.Page),
 	}
 	return
 }
@@ -36,10 +35,10 @@ func (m *Memory) SavePage(p *page.Page) (err error) {
 	return
 }
 func (m *Memory) GetConfig(c *config.Config) (err error) {
-	*c = *m.config
+	*c = m.config
 	return
 }
 func (m *Memory) SaveConfig(c *config.Config) (err error) {
-	*m.config = *c
+	m.config = *c
 	return
 }

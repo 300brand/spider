@@ -1,6 +1,7 @@
 package scheduler
 
 import (
+	"errors"
 	"github.com/300brand/spider/config"
 	"github.com/300brand/spider/domain"
 	"github.com/300brand/spider/page"
@@ -23,6 +24,10 @@ type Scheduler struct {
 	store        *storage.Storage
 }
 
+var (
+	ErrQueueNotFound = errors.New("Queue not found")
+)
+
 func New(q queue.Queue, store *storage.Storage) (s *Scheduler, err error) {
 	s = &Scheduler{
 		config:       new(config.Config),
@@ -43,8 +48,11 @@ func New(q queue.Queue, store *storage.Storage) (s *Scheduler, err error) {
 }
 
 func (s *Scheduler) Add(url string) (err error) {
-	tld := domain.FromURL(url)
-	return s.queues[tld].Enqueue(url)
+	q, ok := s.queues[domain.FromURL(url)]
+	if !ok {
+		return ErrQueueNotFound
+	}
+	return q.Enqueue(url)
 }
 
 func (s *Scheduler) Cur(d *domain.Domain, p *page.Page) (err error) {
@@ -61,6 +69,10 @@ func (s *Scheduler) Cur(d *domain.Domain, p *page.Page) (err error) {
 	}
 
 	return
+}
+
+func (s *Scheduler) Err() error {
+	return s.err
 }
 
 func (s *Scheduler) Next() bool {

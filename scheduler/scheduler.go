@@ -114,7 +114,9 @@ func (s *Scheduler) Stop() {
 	}
 }
 
-func (s *Scheduler) Update(p *page.Page) (err error) { return s.store.SavePage(p) }
+func (s *Scheduler) Update(p *page.Page) (err error) {
+	return s.store.SavePage(p)
+}
 
 func (s *Scheduler) notifier(d *domain.Domain) {
 	s.restart(d)

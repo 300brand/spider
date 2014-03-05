@@ -56,12 +56,12 @@ func (s *Sqlite) GetConfig(c *config.Config) (err error) {
 		return
 	}
 
-	rows, err := db.Query(`SELECT domain, name, delay FROM domains`)
+	rows, err := db.Query(`SELECT domain, name, delay, redl FROM domains`)
 	if err != nil {
 		return
 	}
 
-	var delay int64
+	var delay, redl int64
 	var subrows *sql.Rows
 	var str string
 	for rows.Next() {
@@ -69,10 +69,11 @@ func (s *Sqlite) GetConfig(c *config.Config) (err error) {
 			Exclude:     make([]string, 0, 8),
 			StartPoints: make([]string, 0, 8),
 		}
-		if err = rows.Scan(&d.URL, &d.Name, &delay); err != nil {
+		if err = rows.Scan(&d.URL, &d.Name, &delay, &redl); err != nil {
 			return
 		}
 		d.Delay = time.Duration(delay)
+		d.Redownload = time.Duration(redl)
 
 		// Exclusion rules
 		subrows, err = db.Query(`SELECT rule FROM excludes WHERE domain = ?`, d.URL)
@@ -173,13 +174,14 @@ func (s *Sqlite) SaveConfig(c *config.Config) (err error) {
 
 		_, err = db.Exec(
 			`INSERT OR REPLACE INTO domains
-				(domain, name, delay, del)
+				(domain, name, delay, redl, del)
 			VALUES
-				(?,      ?,    ?,     0  )
+				(?,      ?,    ?,     ?,    0  )
 			`,
 			domain,
 			d.Name,
 			d.Delay.Nanoseconds(),
+			d.Redownload.Nanoseconds(),
 		)
 		if err != nil {
 			return
@@ -225,7 +227,7 @@ func (s *Sqlite) SavePage(p *page.Page) (err error) {
 			INSERT OR REPLACE INTO pages
 				(url, first_download, last_download, last_modified, checksum)
 			VALUES
-				(?,   ?,              ?,             ?,             ?   )
+				(?,   ?,              ?,             ?,             ?       )
 		`,
 		p.URL,
 		p.FirstDownload.UnixNano(),
@@ -261,6 +263,7 @@ func (s *Sqlite) configDB() (db *sql.DB, err error) {
 			domain TEXT NOT NULL PRIMARY KEY,
 			name   TEXT NOT NULL,
 			delay  INTEGER,
+			redl   INTEGER,
 			del    INTEGER DEFAULT 0
 		)`,
 		`CREATE TABLE excludes (
@@ -290,7 +293,6 @@ func (s *Sqlite) domainDB(name string) (db *sql.DB, err error) {
 	}
 	creates := []string{
 		`CREATE TABLE pages (
-			page_id        INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
 			url            TEXT NOT NULL UNIQUE,
 			first_download INTEGER NOT NULL,
 			last_download  INTEGER NOT NULL,

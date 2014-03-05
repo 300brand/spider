@@ -1,7 +1,12 @@
 package page
 
 import (
+	"bytes"
+	"errors"
+	"github.com/300brand/spider/download"
+	"github.com/PuerkitoBio/goquery"
 	"hash/crc32"
+	"io/ioutil"
 	"net/url"
 	"time"
 )
@@ -15,6 +20,8 @@ type Page struct {
 	url           *url.URL
 	data          []byte
 }
+
+var ErrNotModified = errors.New("Not modified")
 
 func New(rawurl string) (p *Page) {
 	p = &Page{
@@ -31,10 +38,60 @@ func (p *Page) Domain() string {
 	return p.GetURL().Host
 }
 
+func (p *Page) Download() (err error) {
+	now := time.Now()
+	resp, err := download.Get(p.URL)
+	if err != nil {
+		return
+	}
+	defer resp.Body.Close()
+
+	if p.data, err = ioutil.ReadAll(resp.Body); err != nil {
+		return
+	}
+
+	p.LastDownload = now
+	if p.FirstDownload.IsZero() {
+		p.FirstDownload = now
+	}
+
+	if sum := p.GetChecksum(); sum != p.Checksum {
+		p.LastModified = now
+		p.Checksum = sum
+		return
+	}
+
+	return ErrNotModified
+}
+
 func (p *Page) GetURL() (u *url.URL) {
 	if p.url != nil {
 		return p.url
 	}
 	u, _ = url.Parse(p.URL)
+	return
+}
+
+func (p *Page) Links() (links []string, err error) {
+	d, err := goquery.NewDocumentFromReader(bytes.NewReader(p.data))
+	if err != nil {
+		return
+	}
+
+	base := p.GetURL()
+	sel := d.Find("a[href]")
+	links = make([]string, 0, sel.Length())
+	sel.Each(func(i int, s *goquery.Selection) {
+		// TODO add check for target attr
+		refStr, exists := s.Attr("href")
+		if !exists {
+			return
+		}
+		ref, err := url.Parse(refStr)
+		if err != nil {
+			return
+		}
+		links = append(links, base.ResolveReference(ref).String())
+	})
 	return
 }

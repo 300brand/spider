@@ -21,4 +21,4 @@
 //         +-----------+
 //         | URL Queue |
 //         +-----------+
-package spider
+package main

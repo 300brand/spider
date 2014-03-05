@@ -3,6 +3,7 @@ package page
 import (
 	"bytes"
 	"errors"
+	"github.com/300brand/logger"
 	"github.com/300brand/spider/download"
 	"github.com/PuerkitoBio/goquery"
 	"hash/crc32"
@@ -45,6 +46,9 @@ func (p *Page) Download() (err error) {
 		return
 	}
 	defer resp.Body.Close()
+
+	contentType := resp.Header.Get("Content-Type")
+	logger.Debug.Printf("%s Content-Type: %s", p.URL, contentType)
 
 	if p.data, err = ioutil.ReadAll(resp.Body); err != nil {
 		return

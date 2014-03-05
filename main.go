@@ -40,7 +40,19 @@ func main() {
 				Name:       "ASAA",
 				URL:        "http://asaa.org",
 				Delay:      10 * time.Second,
-				Redownload: 3 * time.Hour,
+				Redownload: 12 * time.Hour,
+			},
+			{
+				Name:       "Community College Week Magazine",
+				URL:        "http://ccweek.com",
+				Delay:      10 * time.Second,
+				Redownload: 12 * time.Hour,
+			},
+			{
+				Name:       "Health IT Security",
+				URL:        "http://healthitsecurity.com",
+				Delay:      10 * time.Second,
+				Redownload: 12 * time.Hour,
 			},
 		},
 	})

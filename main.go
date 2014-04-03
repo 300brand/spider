@@ -9,58 +9,76 @@ import (
 	"github.com/300brand/spider/queue"
 	"github.com/300brand/spider/scheduler"
 	"github.com/300brand/spider/storage"
-	"github.com/300brand/spider/storage/backend"
 	"time"
 )
 
 var (
-	sqliteDir = flag.String("sqlite.dir", "spider_data/sqlite", "Directory to store SQLite files")
+	storeSqlite = flag.String("store.sqlite", "", "Directory to store SQLite files")
+	storeMongo  = flag.String("store.mongo", "", "Connection string to mongodb store - host:port/db")
+	queueMongo  = flag.String("queue.mongo", "", "Connection string to mongodb queue - host:port/db")
 )
 
 func main() {
 	flag.Parse()
+	var err error
 
-	bkend, err := backend.NewSqlite(*sqliteDir)
-	if err != nil {
-		logger.Error.Fatal(err)
+	// Set up storage backend
+	var store storage.Storage
+	switch {
+	case *storeMongo != "":
+		if store, err = storage.NewMongo(*storeMongo); err != nil {
+			logger.Error.Fatal(err)
+		}
+	case *storeSqlite != "":
+		if store, err = storage.NewSqlite(*storeSqlite); err != nil {
+			logger.Error.Fatal(err)
+		}
+	default:
+		store, _ = storage.NewMemory()
 	}
-	defer bkend.Close()
 
-	store := storage.New(bkend)
+	// Set up queue backend
+	var q queue.Queue
+	switch {
+	case *queueMongo != "":
+		if q, err = queue.NewMongo(*queueMongo); err != nil {
+			logger.Error.Fatal(err)
+		}
+	default:
+		q = queue.NewMemory(128)
+	}
 
 	err = store.SaveConfig(&config.Config{
 		Domains: []domain.Domain{
+			{
+				Name:       "300Brand",
+				URL:        "http://300brand.com",
+				Delay:      time.Second,
+				Redownload: time.Hour,
+			},
 			// {
-			// 	Name:       "300Brand",
-			// 	URL:        "http://300brand.com",
-			// 	Delay:      time.Second,
-			// 	Redownload: time.Hour,
+			// 	Name:       "ASAA",
+			// 	URL:        "http://asaa.org",
+			// 	Delay:      10 * time.Second,
+			// 	Redownload: 12 * time.Hour,
 			// },
-			{
-				Name:       "ASAA",
-				URL:        "http://asaa.org",
-				Delay:      10 * time.Second,
-				Redownload: 12 * time.Hour,
-			},
-			{
-				Name:       "Community College Week Magazine",
-				URL:        "http://ccweek.com",
-				Delay:      10 * time.Second,
-				Redownload: 12 * time.Hour,
-			},
-			{
-				Name:       "Health IT Security",
-				URL:        "http://healthitsecurity.com",
-				Delay:      10 * time.Second,
-				Redownload: 12 * time.Hour,
-			},
+			// {
+			// 	Name:       "Community College Week Magazine",
+			// 	URL:        "http://ccweek.com",
+			// 	Delay:      10 * time.Second,
+			// 	Redownload: 12 * time.Hour,
+			// },
+			// {
+			// 	Name:       "Health IT Security",
+			// 	URL:        "http://healthitsecurity.com",
+			// 	Delay:      10 * time.Second,
+			// 	Redownload: 12 * time.Hour,
+			// },
 		},
 	})
 	if err != nil {
 		logger.Error.Fatal(err)
 	}
-
-	q := queue.NewMemoryQueue(128)
 
 	sch, err := scheduler.New(q, store)
 	if err != nil {

@@ -9,6 +9,6 @@ type MemoryQueueSuite struct{}
 var _ = gocheck.Suite(new(MemoryQueueSuite))
 
 func (s *MemoryQueueSuite) TestQueue(c *gocheck.C) {
-	q := NewMemoryQueue(3)
+	q := NewMemory(3)
 	testQueue(c, q)
 }

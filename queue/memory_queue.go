@@ -12,7 +12,7 @@ type memQueue struct {
 
 var _ Queue = new(memQueue)
 
-func NewMemoryQueue(prealloc int) (q *memQueue) {
+func NewMemory(prealloc int) (q *memQueue) {
 	return &memQueue{
 		Name:  "default",
 		Queue: make([]string, 0, prealloc),

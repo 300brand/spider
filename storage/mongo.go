@@ -1,4 +1,4 @@
-package backend
+package storage
 
 import (
 	"github.com/300brand/spider/config"
@@ -26,7 +26,7 @@ type mongoPage struct {
 	Page page.Page
 }
 
-var _ Backend = new(Mongo)
+var _ Storage = new(Mongo)
 
 func NewMongo(url string) (m *Mongo, err error) {
 	s, err := mgo.Dial(url)

@@ -1,4 +1,4 @@
-package backend
+package storage
 
 import (
 	"github.com/300brand/spider/config"
@@ -11,11 +11,11 @@ import (
 
 func Test(t *testing.T) { gocheck.TestingT(t) }
 
-func testBackend(c *gocheck.C, b Backend) {
+func testBackend(c *gocheck.C, s Storage) {
 	// Test config in/out
 	cfg := new(config.Config)
 
-	c.Assert(b.GetConfig(cfg), gocheck.IsNil)
+	c.Assert(s.GetConfig(cfg), gocheck.IsNil)
 
 	cfg.Domains = append(cfg.Domains, domain.Domain{
 		Name: "Google",
@@ -30,10 +30,10 @@ func testBackend(c *gocheck.C, b Backend) {
 		},
 		Delay: time.Minute,
 	})
-	c.Assert(b.SaveConfig(cfg), gocheck.IsNil)
+	c.Assert(s.SaveConfig(cfg), gocheck.IsNil)
 
 	outCfg := new(config.Config)
-	c.Assert(b.GetConfig(outCfg), gocheck.IsNil)
+	c.Assert(s.GetConfig(outCfg), gocheck.IsNil)
 	c.Assert(len(outCfg.Domains), gocheck.Equals, len(cfg.Domains))
 	c.Assert(len(outCfg.Domains[0].Exclude), gocheck.Equals, len(cfg.Domains[0].Exclude))
 	c.Assert(len(outCfg.Domains[0].StartPoints), gocheck.Equals, len(cfg.Domains[0].StartPoints))
@@ -44,13 +44,13 @@ func testBackend(c *gocheck.C, b Backend) {
 	url := "http://google.com/news.html"
 
 	p := new(page.Page)
-	c.Assert(b.GetPage(url, p), gocheck.Equals, ErrNotFound)
+	c.Assert(s.GetPage(url, p), gocheck.Equals, ErrNotFound)
 	c.Assert(p.URL, gocheck.Equals, "")
 
 	p.URL = url
-	c.Assert(b.SavePage(p), gocheck.IsNil)
+	c.Assert(s.SavePage(p), gocheck.IsNil)
 
 	*p = page.Page{}
-	c.Assert(b.GetPage(url, p), gocheck.IsNil)
+	c.Assert(s.GetPage(url, p), gocheck.IsNil)
 	c.Assert(p.URL, gocheck.Equals, url)
 }

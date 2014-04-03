@@ -1,4 +1,4 @@
-package backend
+package storage
 
 import (
 	"github.com/300brand/spider/config"
@@ -10,7 +10,7 @@ type Memory struct {
 	pages  map[string]page.Page
 }
 
-var _ Backend = new(Memory)
+var _ Storage = new(Memory)
 
 func NewMemory() (m *Memory, err error) {
 	m = &Memory{

@@ -1,4 +1,4 @@
-package backend
+package storage
 
 import (
 	"launchpad.net/gocheck"

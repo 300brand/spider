@@ -1,4 +1,4 @@
-package backend
+package storage
 
 import (
 	"database/sql"
@@ -17,7 +17,7 @@ type Sqlite struct {
 	dbs map[string]*sql.DB
 }
 
-var _ Backend = new(Sqlite)
+var _ Storage = new(Sqlite)
 
 func NewSqlite(dir string) (s *Sqlite, err error) {
 	if err = os.MkdirAll(dir, 0755); err != nil {

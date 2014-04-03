@@ -7,7 +7,6 @@ import (
 	"github.com/300brand/spider/page"
 	"github.com/300brand/spider/queue"
 	"github.com/300brand/spider/storage"
-	"github.com/300brand/spider/storage/backend"
 	"time"
 )
 
@@ -21,14 +20,14 @@ type Scheduler struct {
 	once         bool
 	queues       map[string]queue.Queue
 	shutdown     chan bool
-	store        *storage.Storage
+	store        storage.Storage
 }
 
 var (
 	ErrQueueNotFound = errors.New("Queue not found")
 )
 
-func New(q queue.Queue, store *storage.Storage) (s *Scheduler, err error) {
+func New(q queue.Queue, store storage.Storage) (s *Scheduler, err error) {
 	s = &Scheduler{
 		config:       new(config.Config),
 		defaultQueue: q,
@@ -61,7 +60,7 @@ func (s *Scheduler) Cur(d *domain.Domain, p *page.Page) (err error) {
 	switch err := s.store.GetPage(s.curUrl, p); err {
 	case nil:
 		return nil
-	case backend.ErrNotFound:
+	case storage.ErrNotFound:
 		*p = page.Page{URL: s.curUrl}
 		return nil
 	default:

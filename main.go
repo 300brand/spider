@@ -16,6 +16,7 @@ var (
 	storeSqlite = flag.String("store.sqlite", "", "Directory to store SQLite files")
 	storeMongo  = flag.String("store.mongo", "", "Connection string to mongodb store - host:port/db")
 	queueMongo  = flag.String("queue.mongo", "", "Connection string to mongodb queue - host:port/db")
+	once        = flag.Bool("once", false, "Only crawl sites once, then stop")
 )
 
 func main() {
@@ -53,7 +54,7 @@ func main() {
 			{
 				Name:       "300Brand",
 				URL:        "http://300brand.com",
-				Delay:      time.Second,
+				Delay:      3 * time.Second,
 				Redownload: time.Hour,
 			},
 			// {
@@ -83,6 +84,9 @@ func main() {
 	sch, err := scheduler.New(q, store)
 	if err != nil {
 		logger.Error.Fatal(err)
+	}
+	if *once {
+		sch.Once()
 	}
 
 	p, d := new(page.Page), new(domain.Domain)

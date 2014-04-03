@@ -5,6 +5,7 @@ import (
 	"github.com/300brand/spider/page"
 	"labix.org/v2/mgo"
 	"labix.org/v2/mgo/bson"
+	"strings"
 	"time"
 )
 
@@ -50,7 +51,8 @@ func (m *Mongo) GetPage(url string, p *page.Page) (err error) {
 	s := m.session.Copy()
 	defer s.Close()
 	result := &mongoPage{}
-	if err = s.DB("").C(m.Pages).FindId(url).One(result); err != nil {
+	tmp := page.New(url)
+	if err = s.DB("").C(m.cName(tmp.Domain())).FindId(url).One(result); err != nil {
 		if err == mgo.ErrNotFound {
 			err = ErrNotFound
 		}
@@ -67,7 +69,7 @@ func (m *Mongo) SavePage(p *page.Page) (err error) {
 		"_id":  p.URL,
 		"page": *p,
 	}
-	_, err = s.DB("").C(m.Pages).UpsertId(p.URL, mp)
+	_, err = s.DB("").C(m.cName(p.Domain())).UpsertId(p.URL, mp)
 	return
 }
 
@@ -92,4 +94,8 @@ func (m *Mongo) SaveConfig(c *config.Config) (err error) {
 	}
 	_, err = s.DB("").C(m.Config).UpsertId("config", change)
 	return
+}
+
+func (m *Mongo) cName(domain string) string {
+	return m.Pages + "_" + strings.Replace(domain, ".", "_", -1)
 }

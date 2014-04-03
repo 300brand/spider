@@ -6,18 +6,18 @@ import (
 )
 
 type MongoQueueSuite struct {
-	URL string
+	Url string
 }
 
 var _ = gocheck.Suite(&MongoQueueSuite{
-	URL: "localhost/test_queue",
+	Url: "localhost/test_queue",
 })
 
 func (s *MongoQueueSuite) SetUpTest(c *gocheck.C) {
-	sess, err := mgo.Dial(s.URL)
+	sess, err := mgo.Dial(s.Url)
 	c.Assert(err, gocheck.IsNil)
 	for _, coll := range []string{"default", "subqueue"} {
-		_, err = sess.DB("").C(coll).RemoveAll(nil)
+		_, err = sess.DB("").C("queue_" + coll).RemoveAll(nil)
 		c.Assert(err, gocheck.IsNil)
 	}
 }

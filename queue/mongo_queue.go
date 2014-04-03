@@ -3,6 +3,7 @@ package queue
 import (
 	"labix.org/v2/mgo"
 	"labix.org/v2/mgo/bson"
+	"strings"
 )
 
 type mongoItem struct {
@@ -34,7 +35,7 @@ func (q *mongoQueue) New(name string) Queue {
 		Name:    name,
 		session: q.session.Copy(),
 	}
-	newQueue.session.DB("").C(name).EnsureIndexKey("id")
+	newQueue.session.DB("").C(newQueue.cName()).EnsureIndexKey("id")
 	return newQueue
 }
 
@@ -43,7 +44,7 @@ func (q *mongoQueue) Dequeue() (s string, err error) {
 		Remove: true,
 	}
 	var result mongoItem
-	_, err = q.session.DB("").C(q.Name).Find(nil).Sort("id").Apply(ch, &result)
+	_, err = q.session.DB("").C(q.cName()).Find(nil).Sort("id").Apply(ch, &result)
 	if err == mgo.ErrNotFound {
 		err = ErrEmpty
 	}
@@ -52,7 +53,7 @@ func (q *mongoQueue) Dequeue() (s string, err error) {
 }
 
 func (q *mongoQueue) Enqueue(s string) (err error) {
-	err = q.session.DB("").C(q.Name).Insert(mongoItem{bson.NewObjectId(), s})
+	err = q.session.DB("").C(q.cName()).Insert(mongoItem{bson.NewObjectId(), s})
 	if mgo.IsDup(err) {
 		return ErrExists
 	}
@@ -60,6 +61,10 @@ func (q *mongoQueue) Enqueue(s string) (err error) {
 }
 
 func (q *mongoQueue) Len() int {
-	n, _ := q.session.DB("").C(q.Name).Count()
+	n, _ := q.session.DB("").C(q.cName()).Count()
 	return n
+}
+
+func (q *mongoQueue) cName() string {
+	return "queue_" + strings.Replace(q.Name, ".", "_", -1)
 }

@@ -5,10 +5,12 @@ import (
 	"github.com/300brand/logger"
 	"github.com/300brand/spider/config"
 	"github.com/300brand/spider/domain"
+	"github.com/300brand/spider/feed"
 	"github.com/300brand/spider/page"
 	"github.com/300brand/spider/queue"
 	"github.com/300brand/spider/scheduler"
 	"github.com/300brand/spider/storage"
+	"net/http"
 	"time"
 )
 
@@ -17,6 +19,7 @@ var (
 	storeMongo  = flag.String("store.mongo", "", "Connection string to mongodb store - host:port/db")
 	queueMongo  = flag.String("queue.mongo", "", "Connection string to mongodb queue - host:port/db")
 	once        = flag.Bool("once", false, "Only crawl sites once, then stop")
+	listen      = flag.String("listen", ":8084", "Address:port to listen for HTTP requests")
 )
 
 func main() {
@@ -80,6 +83,13 @@ func main() {
 	if err != nil {
 		logger.Error.Fatal(err)
 	}
+
+	http.Handle("/rss/", feed.New(store))
+	go func() {
+		if err := http.ListenAndServe(*listen, nil); err != nil {
+			logger.Error.Fatal(err)
+		}
+	}()
 
 	sch, err := scheduler.New(q, store)
 	if err != nil {

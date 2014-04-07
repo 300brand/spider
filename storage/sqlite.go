@@ -145,6 +145,10 @@ func (s *Sqlite) GetPage(url string, p *page.Page) (err error) {
 	return
 }
 
+func (s *Sqlite) GetPages(domain, key string, pages *[]*page.Page) (err error) {
+	return
+}
+
 func (s *Sqlite) SaveConfig(c *config.Config) (err error) {
 	db, err := s.getDB("config")
 	if err != nil {

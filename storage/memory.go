@@ -30,6 +30,9 @@ func (m *Memory) GetPage(url string, p *page.Page) (err error) {
 	}
 	return ErrNotFound
 }
+func (m *Memory) GetPages(domain, key string, pages *[]*page.Page) (err error) {
+	return
+}
 func (m *Memory) SavePage(p *page.Page) (err error) {
 	m.pages[p.URL] = *p
 	return

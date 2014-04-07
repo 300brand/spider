@@ -23,8 +23,9 @@ type mongoConfig struct {
 }
 
 type mongoPage struct {
-	Id   string `bson:"_id"`
-	Page page.Page
+	Id     string `bson:"_id"`
+	Domain string
+	Page   page.Page
 }
 
 var _ Storage = new(Mongo)
@@ -50,7 +51,9 @@ func (m *Mongo) Close() (err error) {
 func (m *Mongo) GetPage(url string, p *page.Page) (err error) {
 	s := m.session.Copy()
 	defer s.Close()
-	result := &mongoPage{}
+	result := &mongoPage{
+		Domain: p.Domain(),
+	}
 	tmp := page.New(url)
 	if err = s.DB("").C(m.cName(tmp.Domain())).FindId(url).One(result); err != nil {
 		if err == mgo.ErrNotFound {
@@ -62,14 +65,19 @@ func (m *Mongo) GetPage(url string, p *page.Page) (err error) {
 	return
 }
 
+func (m *Mongo) GetPages(domain, key string, pages *[]*page.Page) (err error) {
+	return
+}
+
 func (m *Mongo) SavePage(p *page.Page) (err error) {
 	s := m.session.Copy()
 	defer s.Close()
+	u := p.GetURL().String()
 	mp := bson.M{
-		"_id":  p.URL,
+		"_id":  u,
 		"page": *p,
 	}
-	_, err = s.DB("").C(m.cName(p.Domain())).UpsertId(p.URL, mp)
+	_, err = s.DB("").C(m.cName(p.Domain())).UpsertId(u, mp)
 	return
 }
 

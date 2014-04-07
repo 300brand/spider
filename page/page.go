@@ -73,6 +73,9 @@ func (p *Page) GetURL() (u *url.URL) {
 		return p.url
 	}
 	u, _ = url.Parse(p.URL)
+	if u.Path == "" {
+		u.Path = "/"
+	}
 	return
 }
 

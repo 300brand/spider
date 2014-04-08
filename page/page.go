@@ -14,6 +14,7 @@ import (
 
 type Page struct {
 	URL           string
+	Title         string
 	Checksum      uint32
 	FirstDownload time.Time
 	LastDownload  time.Time

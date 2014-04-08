@@ -52,37 +52,37 @@ func main() {
 		q = queue.NewMemory(128)
 	}
 
-	err = store.SaveConfig(&config.Config{
-		Domains: []domain.Domain{
-			{
-				Name:       "300Brand",
-				URL:        "http://300brand.com",
-				Delay:      3 * time.Second,
-				Redownload: time.Hour,
-			},
-			// {
-			// 	Name:       "ASAA",
-			// 	URL:        "http://asaa.org",
-			// 	Delay:      10 * time.Second,
-			// 	Redownload: 12 * time.Hour,
-			// },
-			// {
-			// 	Name:       "Community College Week Magazine",
-			// 	URL:        "http://ccweek.com",
-			// 	Delay:      10 * time.Second,
-			// 	Redownload: 12 * time.Hour,
-			// },
-			// {
-			// 	Name:       "Health IT Security",
-			// 	URL:        "http://healthitsecurity.com",
-			// 	Delay:      10 * time.Second,
-			// 	Redownload: 12 * time.Hour,
-			// },
-		},
-	})
-	if err != nil {
-		logger.Error.Fatal(err)
-	}
+	// err = store.SaveConfig(&config.Config{
+	// 	Domains: []domain.Domain{
+	// 		{
+	// 			Name:       "300Brand",
+	// 			URL:        "http://300brand.com",
+	// 			Delay:      3 * time.Second,
+	// 			Redownload: time.Hour,
+	// 		},
+	// 		// {
+	// 		// 	Name:       "ASAA",
+	// 		// 	URL:        "http://asaa.org",
+	// 		// 	Delay:      10 * time.Second,
+	// 		// 	Redownload: 12 * time.Hour,
+	// 		// },
+	// 		// {
+	// 		// 	Name:       "Community College Week Magazine",
+	// 		// 	URL:        "http://ccweek.com",
+	// 		// 	Delay:      10 * time.Second,
+	// 		// 	Redownload: 12 * time.Hour,
+	// 		// },
+	// 		// {
+	// 		// 	Name:       "Health IT Security",
+	// 		// 	URL:        "http://healthitsecurity.com",
+	// 		// 	Delay:      10 * time.Second,
+	// 		// 	Redownload: 12 * time.Hour,
+	// 		// },
+	// 	},
+	// })
+	// if err != nil {
+	// 	logger.Error.Fatal(err)
+	// }
 
 	http.Handle("/rss/", feed.New(store))
 	go func() {

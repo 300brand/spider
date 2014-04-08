@@ -70,8 +70,12 @@ func (d *Domain) Domain() (domainName string) {
 }
 
 func (d *Domain) GetURL() *url.URL {
-	if d.url == nil {
-		d.url, _ = url.Parse(d.URL)
+	if d.url != nil {
+		return d.url
+	}
+	d.url, _ = url.Parse(d.URL)
+	if d.url.Path == "" {
+		d.url.Path = "/"
 	}
 	return d.url
 }

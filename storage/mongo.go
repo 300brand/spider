@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"github.com/300brand/logger"
 	"github.com/300brand/spider/config"
 	"github.com/300brand/spider/page"
 	"labix.org/v2/mgo"
@@ -14,6 +15,7 @@ type Mongo struct {
 	Database string
 	Config   string
 	Pages    string
+	Exports  string
 }
 
 type mongoConfig struct {
@@ -22,8 +24,16 @@ type mongoConfig struct {
 	Config     config.Config
 }
 
+type mongoExport struct {
+	Id   bson.ObjectId `bson:"_id"`
+	Key  string
+	Len  int
+	Time time.Time
+}
+
 type mongoPage struct {
-	Id     string `bson:"_id"`
+	Id     bson.ObjectId `bson:",omitempty"`
+	Url    string        `bson:"_id"`
 	Domain string
 	Page   page.Page
 }
@@ -39,6 +49,7 @@ func NewMongo(url string) (m *Mongo, err error) {
 		session: s,
 		Config:  "config",
 		Pages:   "pages",
+		Exports: "exports",
 	}
 	return
 }
@@ -66,18 +77,69 @@ func (m *Mongo) GetPage(url string, p *page.Page) (err error) {
 }
 
 func (m *Mongo) GetPages(domain, key string, pages *[]*page.Page) (err error) {
+	s := m.session.Copy()
+	defer s.Close()
+	c := s.DB("").C(m.Exports)
+
+	// Figure out how far back to go
+	since := bson.ObjectIdHex("000000000000000000000000")
+	if key != "" {
+		v := new(mongoExport)
+		if err = c.Find(bson.M{"key": key}).Sort("-_id").One(v); err != nil && err != mgo.ErrNotFound {
+			return
+		}
+		if err != mgo.ErrNotFound {
+			since = v.Id
+		}
+	}
+
+	// Grab the goods
+	s.DB("").C(m.cName(domain)).EnsureIndexKey("id")
+	q := bson.M{
+		"id": bson.M{
+			"$gt": since,
+		},
+		"domain": domain,
+	}
+	mPages := make([]mongoPage, cap(*pages))
+	if err = s.DB("").C(m.cName(domain)).Find(q).Limit(cap(mPages)).Sort("-id").All(&mPages); err != nil {
+		logger.Error.Print(err)
+		return
+	}
+	for i := range mPages {
+		*pages = append(*pages, &mPages[i].Page)
+	}
+
+	// Set the flag back in the exports collection
+	if len(mPages) == 0 {
+		// ... unless nothing came out
+		return
+	}
+	err = c.Insert(mongoExport{
+		Id:   mPages[0].Id,
+		Key:  key,
+		Len:  len(mPages),
+		Time: time.Now(),
+	})
 	return
 }
 
 func (m *Mongo) SavePage(p *page.Page) (err error) {
 	s := m.session.Copy()
 	defer s.Close()
+	c := s.DB("").C(m.cName(p.Domain()))
+
 	u := p.GetURL().String()
-	mp := bson.M{
-		"_id":  u,
-		"page": *p,
+	mp := mongoPage{
+		Url:    u,
+		Domain: p.Domain(),
+		Page:   *p,
 	}
-	_, err = s.DB("").C(m.cName(p.Domain())).UpsertId(u, mp)
+	err = c.UpdateId(u, mp)
+	if err == mgo.ErrNotFound {
+		mp.Id = bson.NewObjectId()
+		err = c.Insert(mp)
+	}
 	return
 }
 

@@ -2,6 +2,7 @@ package feed
 
 import (
 	"encoding/xml"
+	"github.com/300brand/spider/page"
 	"github.com/300brand/spider/storage"
 	"log"
 	"net/http"
@@ -40,7 +41,33 @@ func New(store storage.Storage) *Feed {
 }
 
 func (f *Feed) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	domain := filepath.Base(r.RequestURI)
+	domain := filepath.Base(r.URL.Path)
 	key := r.FormValue("key")
-	//pages := f.store.GetEntries(domain, key)
+
+	log.Printf("Domain:%s Key:%s", domain, key)
+
+	pages := make([]*page.Page, 0, 100)
+	if err := f.store.GetPages(domain, key, &pages); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	rss := new(RSS)
+	rss.Channel.Title = "RSS Feed for " + domain
+	rss.Channel.Item = make([]Item, len(pages))
+	for i := range pages {
+		u := pages[i].GetURL()
+		rss.Channel.Item[i] = Item{
+			Guid:    u.String(),
+			Link:    u.String(),
+			PubDate: pages[i].FirstDownload,
+			Source:  "CoverageSpider",
+			Title:   pages[i].Title,
+		}
+	}
+
+	enc := xml.NewEncoder(w)
+	w.Write([]byte(xml.Header))
+	enc.Indent("", "\t")
+	enc.Encode(rss)
 }

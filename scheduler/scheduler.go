@@ -148,6 +148,6 @@ func (s *Scheduler) restart(d *domain.Domain) {
 		s.Add(d.StartPoints[i])
 	}
 	if len(d.StartPoints) == 0 {
-		s.Add(d.URL)
+		s.Add(d.GetURL().String())
 	}
 }

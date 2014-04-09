@@ -11,11 +11,13 @@ import (
 )
 
 type Mongo struct {
-	session  *mgo.Session
 	Database string
 	Config   string
 	Pages    string
 	Exports  string
+	session  *mgo.Session
+	shard    bool
+	sharded  bool
 }
 
 type mongoConfig struct {
@@ -40,16 +42,34 @@ type mongoPage struct {
 
 var _ Storage = new(Mongo)
 
-func NewMongo(url string) (m *Mongo, err error) {
+func NewMongo(url string, shard bool) (m *Mongo, err error) {
 	s, err := mgo.Dial(url)
 	if err != nil {
 		return
 	}
 	m = &Mongo{
-		session: s,
 		Config:  "config",
 		Pages:   "pages",
 		Exports: "exports",
+		session: s,
+		shard:   shard,
+	}
+	if m.shard {
+		err := m.session.DB("admin").Run(bson.M{
+			"shardCollection": m.session.DB("").Name + ".config",
+			"key":             bson.M{"_id": "hashed"},
+		}, nil)
+		if err != nil {
+			logger.Error.Printf("sh.shardCollection(%s.config): %s", m.session.DB("").Name, err)
+		}
+		err = m.session.DB("admin").Run(bson.M{
+			"shardCollection":  m.session.DB("").Name + ".exports",
+			"key":              bson.M{"_id": "hashed"},
+			"numInitialChunks": 16,
+		}, nil)
+		if err != nil {
+			logger.Error.Printf("sh.shardCollection(%s.exports): %s", m.session.DB("").Name, err)
+		}
 	}
 	return
 }
@@ -166,6 +186,17 @@ func (m *Mongo) SaveConfig(c *config.Config) (err error) {
 	return
 }
 
-func (m *Mongo) cName(domain string) string {
-	return m.Pages + "_" + strings.Replace(domain, ".", "_", -1)
+func (m *Mongo) cName(domain string) (name string) {
+	name = m.Pages + "_" + strings.Replace(domain, ".", "_", -1)
+	if m.shard && !m.sharded {
+		err := m.session.DB("admin").Run(bson.M{
+			"shardCollection": m.session.DB("").Name + "." + name,
+			"key":             bson.M{"_id": "hashed"},
+		}, nil)
+		if err != nil {
+			logger.Error.Printf("sh.shardCollection(%s.%s): %s", m.session.DB("").Name, name, err)
+		}
+		m.sharded = true
+	}
+	return
 }

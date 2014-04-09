@@ -3,24 +3,29 @@ package main
 import (
 	"flag"
 	"github.com/300brand/logger"
-	"github.com/300brand/spider/config"
 	"github.com/300brand/spider/domain"
 	"github.com/300brand/spider/feed"
 	"github.com/300brand/spider/page"
 	"github.com/300brand/spider/queue"
 	"github.com/300brand/spider/scheduler"
 	"github.com/300brand/spider/storage"
+	"log"
 	"net/http"
-	"time"
 )
 
 var (
-	storeSqlite = flag.String("store.sqlite", "", "Directory to store SQLite files")
-	storeMongo  = flag.String("store.mongo", "", "Connection string to mongodb store - host:port/db")
-	queueMongo  = flag.String("queue.mongo", "", "Connection string to mongodb queue - host:port/db")
-	once        = flag.Bool("once", false, "Only crawl sites once, then stop")
-	listen      = flag.String("listen", ":8084", "Address:port to listen for HTTP requests")
+	storeSqlite     = flag.String("store.sqlite", "", "Directory to store SQLite files")
+	storeMongo      = flag.String("store.mongo", "", "Connection string to mongodb store - host:port/db")
+	storeMongoShard = flag.Bool("store.mongo.shard", false, "Shard new mongo collections")
+	queueMongo      = flag.String("queue.mongo", "", "Connection string to mongodb queue - host:port/db")
+	queueMongoShard = flag.Bool("queue.mongo.shard", false, "Shard new mongo collections")
+	once            = flag.Bool("once", false, "Only crawl sites once, then stop")
+	listen          = flag.String("listen", ":8084", "Address:port to listen for HTTP requests")
 )
+
+func init() {
+	logger.Error = log.New(logger.NewColorStderr("r"), "  ERROR ", logger.DefaultFlags)
+}
 
 func main() {
 	flag.Parse()
@@ -30,7 +35,7 @@ func main() {
 	var store storage.Storage
 	switch {
 	case *storeMongo != "":
-		if store, err = storage.NewMongo(*storeMongo); err != nil {
+		if store, err = storage.NewMongo(*storeMongo, *storeMongoShard); err != nil {
 			logger.Error.Fatal(err)
 		}
 	case *storeSqlite != "":
@@ -45,44 +50,12 @@ func main() {
 	var q queue.Queue
 	switch {
 	case *queueMongo != "":
-		if q, err = queue.NewMongo(*queueMongo); err != nil {
+		if q, err = queue.NewMongo(*queueMongo, *queueMongoShard); err != nil {
 			logger.Error.Fatal(err)
 		}
 	default:
 		q = queue.NewMemory(128)
 	}
-
-	// err = store.SaveConfig(&config.Config{
-	// 	Domains: []domain.Domain{
-	// 		{
-	// 			Name:       "300Brand",
-	// 			URL:        "http://300brand.com",
-	// 			Delay:      3 * time.Second,
-	// 			Redownload: time.Hour,
-	// 		},
-	// 		// {
-	// 		// 	Name:       "ASAA",
-	// 		// 	URL:        "http://asaa.org",
-	// 		// 	Delay:      10 * time.Second,
-	// 		// 	Redownload: 12 * time.Hour,
-	// 		// },
-	// 		// {
-	// 		// 	Name:       "Community College Week Magazine",
-	// 		// 	URL:        "http://ccweek.com",
-	// 		// 	Delay:      10 * time.Second,
-	// 		// 	Redownload: 12 * time.Hour,
-	// 		// },
-	// 		// {
-	// 		// 	Name:       "Health IT Security",
-	// 		// 	URL:        "http://healthitsecurity.com",
-	// 		// 	Delay:      10 * time.Second,
-	// 		// 	Redownload: 12 * time.Hour,
-	// 		// },
-	// 	},
-	// })
-	// if err != nil {
-	// 	logger.Error.Fatal(err)
-	// }
 
 	http.Handle("/rss/", feed.New(store))
 	go func() {

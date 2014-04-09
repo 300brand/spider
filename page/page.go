@@ -9,6 +9,7 @@ import (
 	"hash/crc32"
 	"io/ioutil"
 	"net/url"
+	"strings"
 	"time"
 )
 
@@ -37,7 +38,11 @@ func (p *Page) GetChecksum() uint32 {
 }
 
 func (p *Page) Domain() string {
-	return p.GetURL().Host
+	d := p.GetURL().Host
+	if strings.HasPrefix(d, "www.") {
+		d = d[4:]
+	}
+	return d
 }
 
 func (p *Page) Download() (err error) {

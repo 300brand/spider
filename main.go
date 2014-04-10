@@ -96,6 +96,10 @@ func main() {
 			continue
 		}
 
+		if err := p.SetTitle(); err != nil {
+			logger.Warn.Printf("Error setting title: %s", err)
+		}
+
 		links, err := p.Links()
 		if err != nil {
 			logger.Error.Fatal(err)

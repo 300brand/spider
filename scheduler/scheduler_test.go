@@ -7,7 +7,6 @@ import (
 	"github.com/300brand/spider/queue"
 	"github.com/300brand/spider/samplesite"
 	"github.com/300brand/spider/storage"
-	"github.com/300brand/spider/storage/backend"
 	"launchpad.net/gocheck"
 	"testing"
 )
@@ -19,7 +18,7 @@ var _ = gocheck.Suite(new(SchedulerSuite))
 func Test(t *testing.T) { gocheck.TestingT(t) }
 
 func (s *SchedulerSuite) TestCrawl(c *gocheck.C) {
-	storeBackend, err := backend.NewMemory()
+	storeBackend, err := storage.NewMemory()
 	c.Assert(err, gocheck.IsNil)
 	store := storage.New(storeBackend)
 	defer store.Close()

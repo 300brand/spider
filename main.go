@@ -86,6 +86,9 @@ func main() {
 
 		switch err := p.Download(); err {
 		case nil:
+			if err := p.SetTitle(); err != nil {
+				logger.Warn.Printf("Error setting title: %s", err)
+			}
 			sch.Update(p)
 		case page.ErrNotModified:
 			logger.Warn.Printf("Not modified: %s", p.URL)
@@ -94,10 +97,6 @@ func main() {
 		default:
 			logger.Error.Printf("Error downloading: %s", err)
 			continue
-		}
-
-		if err := p.SetTitle(); err != nil {
-			logger.Warn.Printf("Error setting title: %s", err)
 		}
 
 		links, err := p.Links()

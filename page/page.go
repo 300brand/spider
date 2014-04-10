@@ -108,3 +108,13 @@ func (p *Page) Links() (links []string, err error) {
 	})
 	return
 }
+
+func (p *Page) SetTitle() (err error) {
+	d, err := goquery.NewDocumentFromReader(bytes.NewReader(p.data))
+	if err != nil {
+		return
+	}
+
+	p.Title = d.Find("title").First().Text()
+	return
+}

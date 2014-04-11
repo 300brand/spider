@@ -62,7 +62,7 @@ func (f *Feed) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			Link:    u.String(),
 			PubDate: pages[i].FirstDownload,
 			Source:  "CoverageSpider",
-			Title:   pages[i].Title,
+			// Title:   pages[i].Title,
 		}
 	}
 

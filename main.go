@@ -17,6 +17,8 @@ var (
 	storeSqlite     = flag.String("store.sqlite", "", "Directory to store SQLite files")
 	storeMongo      = flag.String("store.mongo", "", "Connection string to mongodb store - host:port/db")
 	storeMongoShard = flag.Bool("store.mongo.shard", false, "Shard new mongo collections")
+	storeMysql      = flag.String("store.mysql", "", "Connection string to mongodb store - user:pass@host:port/db")
+	queueBeanstalk  = flag.String("queue.beanstalk", "", "Connection string to beanstalkd queue - host:port")
 	queueMongo      = flag.String("queue.mongo", "", "Connection string to mongodb queue - host:port/db")
 	queueMongoShard = flag.Bool("queue.mongo.shard", false, "Shard new mongo collections")
 	once            = flag.Bool("once", false, "Only crawl sites once, then stop")
@@ -34,6 +36,10 @@ func main() {
 	// Set up storage backend
 	var store storage.Storage
 	switch {
+	case *storeMysql != "":
+		if store, err = storage.NewMySQL(*storeMysql); err != nil {
+			logger.Error.Fatal(err)
+		}
 	case *storeMongo != "":
 		if store, err = storage.NewMongo(*storeMongo, *storeMongoShard); err != nil {
 			logger.Error.Fatal(err)
@@ -49,6 +55,10 @@ func main() {
 	// Set up queue backend
 	var q queue.Queue
 	switch {
+	case *queueBeanstalk != "":
+		if q, err = queue.NewBeanstalk(*queueBeanstalk); err != nil {
+			logger.Error.Fatal(err)
+		}
 	case *queueMongo != "":
 		if q, err = queue.NewMongo(*queueMongo, *queueMongoShard); err != nil {
 			logger.Error.Fatal(err)

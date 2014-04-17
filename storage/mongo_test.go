@@ -24,7 +24,7 @@ func (s *MongoSuite) SetUpTest(c *gocheck.C) {
 
 // Runs the standard backend tests
 func (s *MongoSuite) TestBackend(c *gocheck.C) {
-	b, err := NewMongo(s.Url)
+	b, err := NewMongo(s.Url, false)
 	c.Assert(err, gocheck.IsNil)
 	defer b.Close()
 	testBackend(c, b)

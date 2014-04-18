@@ -58,19 +58,24 @@ func (s *MySQL) GetConfig(c *config.Config) (err error) {
 		d.Delay = time.Duration(delay)
 		d.Redownload = time.Duration(redl)
 
-		// Exclusion rules
-		subrows, err = s.db.Query(`SELECT rule FROM excludes WHERE domain = ?`, d.URL)
-		if err != nil {
-			return
-		}
-		for subrows.Next() {
-			if err = subrows.Scan(&str); err != nil {
+		// Regex rules
+		for typ, f := range map[string]*[]string{
+			"exclude": &d.Exclude,
+			"include": &d.Include,
+		} {
+			subrows, err = s.db.Query(`SELECT rule FROM regexes WHERE type = ? AND domain = ?`, typ, d.URL)
+			if err != nil {
 				return
 			}
-			d.Exclude = append(d.Exclude, str)
-		}
-		if err = subrows.Err(); err != nil {
-			return
+			for subrows.Next() {
+				if err = subrows.Scan(&str); err != nil {
+					return
+				}
+				*f = append(*f, str)
+			}
+			if err = subrows.Err(); err != nil {
+				return
+			}
 		}
 
 		// Start Points
@@ -142,11 +147,11 @@ func (s *MySQL) SaveConfig(c *config.Config) (err error) {
 	}
 
 	// Update data
-	exStmt, err := s.db.Prepare(`INSERT IGNORE INTO excludes (domain, rule) VALUES (?,?)`)
+	reStmt, err := s.db.Prepare(`INSERT IGNORE INTO regexes (domain, type, rule) VALUES (?,?,?)`)
 	if err != nil {
 		return
 	}
-	defer exStmt.Close()
+	defer reStmt.Close()
 
 	spStmt, err := s.db.Prepare(`INSERT IGNORE INTO start_points (domain, path) VALUES (?,?)`)
 	if err != nil {
@@ -183,11 +188,16 @@ func (s *MySQL) SaveConfig(c *config.Config) (err error) {
 		}
 
 		// Domain Exclusion Rules
-		if _, err = s.db.Exec(`DELETE FROM excludes WHERE domain = ?`, domain); err != nil {
+		if _, err = s.db.Exec(`DELETE FROM regexes WHERE domain = ?`, domain); err != nil {
 			return
 		}
-		for _, ex := range d.Exclude {
-			if _, err = exStmt.Exec(domain, ex); err != nil {
+		for _, re := range d.Include {
+			if _, err = reStmt.Exec(domain, "include", re); err != nil {
+				return
+			}
+		}
+		for _, re := range d.Exclude {
+			if _, err = reStmt.Exec(domain, "exclude", re); err != nil {
 				return
 			}
 		}
@@ -270,10 +280,11 @@ func (s *MySQL) configTables() (err error) {
 			redl   BIGINT,
 			del    TINYINT DEFAULT 0
 		)`,
-		`CREATE TABLE IF NOT EXISTS excludes (
+		`CREATE TABLE IF NOT EXISTS regexes (
 			domain VARCHAR(255) NOT NULL,
+			type   VARCHAR(32) NOT NULL,
 			rule   VARCHAR(255) NOT NULL,
-			UNIQUE(domain, rule)
+			UNIQUE(domain, type, rule)
 		)`,
 		`CREATE TABLE IF NOT EXISTS start_points (
 			domain VARCHAR(255) NOT NULL,

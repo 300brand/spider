@@ -16,11 +16,11 @@ func Test(t *testing.T) { gocheck.TestingT(t) }
 
 func (s *DomainSuite) TestRobotsTxt(c *gocheck.C) {
 	d := &Domain{URL: samplesite.URL}
-	tests := map[*page.Page]bool{
-		&page.Page{URL: samplesite.URL + "/"}:         true,
-		&page.Page{URL: samplesite.URL + "/nospider"}: false,
-		&page.Page{URL: samplesite.URL + "/article1"}: true,
-		&page.Page{URL: samplesite.URL + "/contact"}:  true,
+	tests := map[*page.Page]error{
+		&page.Page{URL: samplesite.URL + "/"}:         nil,
+		&page.Page{URL: samplesite.URL + "/nospider"}: ErrRobot,
+		&page.Page{URL: samplesite.URL + "/article1"}: nil,
+		&page.Page{URL: samplesite.URL + "/contact"}:  nil,
 	}
 	for p, canDL := range tests {
 		c.Assert(d.CanDownload(p), gocheck.Equals, canDL)
@@ -40,7 +40,7 @@ func (s *DomainSuite) TestExcludeRegexp(c *gocheck.C) {
 		&page.Page{URL: samplesite.URL + "/contact"}:  false,
 	}
 	for p, canDL := range tests {
-		c.Assert(d.CanDownload(p), gocheck.Equals, canDL)
+		c.Assert(d.CanDownload(p) == nil, gocheck.Equals, canDL)
 	}
 }
 
@@ -55,6 +55,31 @@ func (s *DomainSuite) TestCanLastDownload(c *gocheck.C) {
 		&page.Page{LastDownload: time.Now().Add(-time.Minute * 61)}: true,
 	}
 
+	for p, canDL := range tests {
+		c.Assert(d.CanDownload(p) == nil, gocheck.Equals, canDL)
+	}
+}
+
+func (s *DomainSuite) TestIn_Exclude(c *gocheck.C) {
+	d := &Domain{
+		URL: samplesite.URL,
+		StartPoints: []string{
+			samplesite.URL + "/contact",
+		},
+		Include: []string{
+			`^/article\d+`,
+		},
+		Exclude: []string{
+			`^/contact$`,
+		},
+	}
+
+	tests := map[*page.Page]error{
+		&page.Page{URL: samplesite.URL + "/"}:         ErrRegexInclude,
+		&page.Page{URL: samplesite.URL + "/nospider"}: ErrRegexInclude,
+		&page.Page{URL: samplesite.URL + "/article1"}: nil,
+		&page.Page{URL: samplesite.URL + "/contact"}:  nil,
+	}
 	for p, canDL := range tests {
 		c.Assert(d.CanDownload(p), gocheck.Equals, canDL)
 	}

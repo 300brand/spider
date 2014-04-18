@@ -89,8 +89,8 @@ func main() {
 		}
 		logger.Debug.Printf("Processing: %s [%s]", p.URL, p.LastDownload)
 
-		if !d.CanDownload(p) {
-			logger.Warn.Printf("Cannot download %s", p.URL)
+		if err := d.CanDownload(p); err != nil {
+			logger.Warn.Printf("Cannot download %s: %s", p.URL, err)
 			continue
 		}
 

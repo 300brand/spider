@@ -48,7 +48,6 @@ func (q *beanstalkQueue) Dequeue() (s string, err error) {
 	switch connErr.Err {
 	case nil:
 		s = string(body)
-		logger.Info.Printf("[%d] <- %s", id, s)
 		defer q.conn.Delete(id)
 	case beanstalk.ErrTimeout:
 		err = ErrEmpty
@@ -62,7 +61,6 @@ func (q *beanstalkQueue) Enqueue(s string) (err error) {
 	id, err := q.enq.Put([]byte(s), 100, 0, time.Hour*24*7)
 	switch err {
 	case nil:
-		logger.Info.Printf("[%d] -> %s", id, s)
 	default:
 		logger.Error.Printf("[%d] -> %s", id, err)
 	}

@@ -1,8 +1,10 @@
 package main
 
 import (
+	"encoding/json"
 	"flag"
 	"github.com/300brand/logger"
+	"github.com/300brand/spider/config"
 	"github.com/300brand/spider/domain"
 	"github.com/300brand/spider/feed"
 	"github.com/300brand/spider/page"
@@ -11,6 +13,7 @@ import (
 	"github.com/300brand/spider/storage"
 	"log"
 	"net/http"
+	"os"
 )
 
 var (
@@ -23,6 +26,7 @@ var (
 	queueMongoShard = flag.Bool("queue.mongo.shard", false, "Shard new mongo collections")
 	once            = flag.Bool("once", false, "Only crawl sites once, then stop")
 	listen          = flag.String("listen", ":8084", "Address:port to listen for HTTP requests")
+	printConf       = flag.Bool("printconfig", false, "Print configuration from store and exit")
 )
 
 func init() {
@@ -50,6 +54,19 @@ func main() {
 		}
 	default:
 		store, _ = storage.NewMemory()
+	}
+
+	if *printConf {
+		c := new(config.Config)
+		if err := store.GetConfig(c); err != nil {
+			logger.Error.Fatalf("Error getting config: %s", err)
+		}
+
+		enc := json.NewEncoder(os.Stdout)
+		if err := enc.Encode(c); err != nil {
+			logger.Error.Fatalf("Error encoding config: %s", err)
+		}
+		return
 	}
 
 	// Set up queue backend

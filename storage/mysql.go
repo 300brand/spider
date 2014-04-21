@@ -50,6 +50,7 @@ func (s *MySQL) GetConfig(c *config.Config) (err error) {
 	for rows.Next() {
 		d := domain.Domain{
 			Exclude:     make([]string, 0, 8),
+			Include:     make([]string, 0, 8),
 			StartPoints: make([]string, 0, 8),
 		}
 		if err = rows.Scan(&d.URL, &d.Name, &delay, &redl); err != nil {
@@ -63,7 +64,7 @@ func (s *MySQL) GetConfig(c *config.Config) (err error) {
 			"exclude": &d.Exclude,
 			"include": &d.Include,
 		} {
-			subrows, err = s.db.Query(`SELECT rule FROM regexes WHERE type = ? AND domain = ?`, typ, d.URL)
+			subrows, err = s.db.Query(`SELECT rule FROM regexes WHERE type = ? AND domain = ?`, typ, d.Domain())
 			if err != nil {
 				return
 			}
@@ -79,7 +80,7 @@ func (s *MySQL) GetConfig(c *config.Config) (err error) {
 		}
 
 		// Start Points
-		subrows, err = s.db.Query(`SELECT path FROM start_points WHERE domain = ?`, d.URL)
+		subrows, err = s.db.Query(`SELECT path FROM start_points WHERE domain = ?`, d.Domain())
 		if err != nil {
 			return
 		}

@@ -30,7 +30,11 @@ var (
 )
 
 func init() {
-	logger.Error = log.New(logger.NewColorStderr("r"), "  ERROR ", logger.DefaultFlags)
+	logger.Debug = log.New(os.Stdout, "  DEBUG ", logger.DefaultFlags)
+	logger.Error = log.New(os.Stderr, "  ERROR ", logger.DefaultFlags)
+	logger.Info = log.New(os.Stdout, "   INFO ", logger.DefaultFlags)
+	logger.Trace = log.New(os.Stdout, "  TRACE ", logger.DefaultFlags)
+	logger.Warn = log.New(os.Stdout, "   WARN ", logger.DefaultFlags)
 }
 
 func main() {

@@ -134,6 +134,108 @@ func (s *MySQL) GetPage(url string, p *page.Page) (err error) {
 }
 
 func (s *MySQL) GetPages(domain, key string, pages *[]*page.Page) (err error) {
+	if err = s.ensureTable("exports"); err != nil {
+		return
+	}
+
+	// Find the last page ID downloaded
+	var lastPageId uint64
+	err = s.db.QueryRow(
+		`
+			SELECT last_page_id
+			FROM exports
+			WHERE domain = ?
+				AND export_key = ?
+			ORDER BY id DESC
+			LIMIT 1
+		`,
+		domain,
+		key,
+	).Scan(&lastPageId)
+
+	// If no previous export, pull the stuff starting from midnight, yesterday
+	if err == sql.ErrNoRows {
+		err = s.db.QueryRow(
+			`
+				SELECT MIN(id)
+				FROM pages
+				WHERE
+					first_download > UNIX_TIMESTAMP(CURDATE()) * 1e9
+					AND domain = ?
+			`,
+			domain,
+		).Scan(&lastPageId)
+	}
+
+	if err != nil {
+		return
+	}
+
+	ps := *pages
+	defer func() { *pages = ps }()
+
+	// Fetch chunk of pages from last ID downloaded to now; reverse order so
+	// feed always shows most recent -> oldest
+	rows, err := s.db.Query(
+		`
+			SELECT *
+			FROM (
+				SELECT id, url, first_download, last_download, last_modified, checksum
+				FROM pages
+				WHERE id > ?
+					AND domain = ?
+				ORDER BY id ASC
+				LIMIT ?
+			) AS p
+			ORDER BY id DESC
+		`,
+		lastPageId,
+		domain,
+		cap(ps),
+	)
+	if err != nil {
+		return
+	}
+
+	var id uint64
+	var firstDownload, lastDownload, lastModified int64
+	ps = ps[:]
+
+	for rows.Next() {
+		var p page.Page
+		err = rows.Scan(
+			&id,
+			&p.URL,
+			&firstDownload,
+			&lastDownload,
+			&lastModified,
+			&p.Checksum,
+		)
+		if err != nil {
+			return
+		}
+		p.FirstDownload = time.Unix(0, firstDownload)
+		p.LastDownload = time.Unix(0, lastDownload)
+		p.LastModified = time.Unix(0, lastModified)
+		if lastPageId < id {
+			lastPageId = id
+		}
+		ps = append(ps, &p)
+	}
+
+	if key != "" {
+		_, err = s.db.Exec(
+			`
+				INSERT INTO exports
+					(last_page_id, domain, export_key, exported)
+				VALUES
+					(?,            ?,      ?,          ?        )
+			`,
+			lastPageId,
+			domain,
+			key,
+		)
+	}
 	return
 }
 
@@ -266,6 +368,8 @@ func (s *MySQL) ensureTable(name string) (err error) {
 	switch name {
 	case "config":
 		return s.configTables()
+	case "exports":
+		return s.exportsTable()
 	default:
 		return s.domainTable(name)
 	}
@@ -304,7 +408,7 @@ func (s *MySQL) configTables() (err error) {
 func (s *MySQL) domainTable(name string) (err error) {
 	creates := []string{
 		`CREATE TABLE IF NOT EXISTS pages (
-			id             BIGINT NOT NULL PRIMARY KEY AUTO_INCREMENT,
+			id             BIGINT UNSIGNED NOT NULL PRIMARY KEY AUTO_INCREMENT,
 			domain         VARCHAR(255) NOT NULL,
 			url            VARCHAR(255) NOT NULL,
 			first_download BIGINT NOT NULL,
@@ -313,6 +417,26 @@ func (s *MySQL) domainTable(name string) (err error) {
 			checksum       INT UNSIGNED NOT NULL,
 			INDEX(domain),
 			UNIQUE(url)
+		)`,
+	}
+	for _, create := range creates {
+		if _, err = s.db.Exec(create); err != nil {
+			return
+		}
+	}
+	return
+}
+
+func (s *MySQL) exportsTable() (err error) {
+	creates := []string{
+		`CREATE TABLE IF NOT EXISTS exports (
+			id             BIGINT NOT NULL PRIMARY KEY AUTO_INCREMENT,
+			domain         VARCHAR(255) NOT NULL,
+			export_key     VARCHAR(255) NOT NULL,
+			exported       INT NOT NULL DEFAULT 0,
+			last_page_id   BIGINT UNSIGNED NOT NULL,
+			added          TIMESTAMP NOT NULL,
+			INDEX(export_key)
 		)`,
 	}
 	for _, create := range creates {

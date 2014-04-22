@@ -27,6 +27,7 @@ var (
 	once            = flag.Bool("once", false, "Only crawl sites once, then stop")
 	listen          = flag.String("listen", ":8084", "Address:port to listen for HTTP requests")
 	printConf       = flag.Bool("printconfig", false, "Print configuration from store and exit")
+	rssOnly         = flag.Bool("rssonly", false, "Only run the web interface for RSS exports (don't spider)")
 )
 
 func init() {
@@ -95,6 +96,10 @@ func main() {
 		}
 	}()
 
+	if *rssOnly {
+		select {}
+	}
+
 	sch, err := scheduler.New(q, store)
 	if err != nil {
 		logger.Error.Fatal(err)
@@ -135,10 +140,15 @@ func main() {
 			logger.Error.Fatal(err)
 		}
 		for i := range links {
+			if err := d.CanDownload(&page.Page{URL: links[i]}); err != nil {
+				continue
+			}
+
 			if err := sch.Add(links[i]); err != nil {
 				logger.Warn.Printf("Error adding %s: %s", links[i], err)
 				continue
 			}
+
 			logger.Trace.Printf("New Link: %s", links[i])
 		}
 	}

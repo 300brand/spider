@@ -64,6 +64,8 @@ func (f *Feed) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			Source:  "CoverageSpider",
 			// Title:   pages[i].Title,
 		}
+		// Knock down to whole seconds
+		rss.Channel.Item[i].PubDate = rss.Channel.Item[i].PubDate.Add(time.Duration(-pages[i].FirstDownload.Nanosecond()))
 	}
 
 	enc := xml.NewEncoder(w)

@@ -61,7 +61,7 @@ func (p *Page) Download() (err error) {
 	}
 
 	p.LastDownload = now
-	if p.FirstDownload.IsZero() {
+	if p.FirstDownload.IsZero() || p.FirstDownload.UnixNano() < 0 {
 		p.FirstDownload = now
 	}
 

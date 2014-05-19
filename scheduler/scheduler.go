@@ -91,7 +91,7 @@ func (s *Scheduler) Next() bool {
 
 		var url string
 		var err error
-		p := new(page.Page)
+		// p := new(page.Page)
 		for {
 			url, err = s.queues[d.Domain()].Dequeue()
 
@@ -102,38 +102,41 @@ func (s *Scheduler) Next() bool {
 					return false
 				}
 				// When the queue is empty, start over from the top
+				logger.Warn.Print("restarting")
 				s.restart(d)
-			}
-
-			if err != queue.ErrEmpty && err != nil {
-				s.err = err
-				return false
-			}
-
-			if d.IsStartPoint(url) {
-				// Break out of fetch-loop and use startpoint as next URL
-				logger.Info.Printf("%s is a startpoint", url)
-				break
-			}
-
-			// Look into DB to see if page exists (should probably be a
-			// separate method)
-			switch s.store.GetPage(url, p) {
-			case nil:
-				// Page found, look for next page
-				logger.Warn.Printf("%s found, refetching from queue", url)
 				continue
-			case storage.ErrNotFound:
-				// Page not found, use as next URL
-				logger.Info.Printf("%s not previously downloaded", url)
-				goto ProcessURL
-			default:
+			}
+
+			if err != nil {
 				s.err = err
 				return false
 			}
+
+			break
+
+			// if d.IsStartPoint(url) {
+			// 	// Break out of fetch-loop and use startpoint as next URL
+			// 	logger.Info.Printf("%s is a startpoint", url)
+			// 	break
+			// }
+
+			// // Look into DB to see if page exists (should probably be a
+			// // separate method)
+			// switch s.store.GetPage(url, p) {
+			// case nil:
+			// 	// Page found, look for next page
+			// 	logger.Warn.Printf("%s found, refetching from queue", url)
+			// 	continue
+			// case storage.ErrNotFound:
+			// 	// Page not found, use as next URL
+			// 	logger.Info.Printf("%s not previously downloaded", url)
+			// 	goto ProcessURL
+			// default:
+			// 	s.err = err
+			// 	return false
+			// }
 		}
 
-	ProcessURL:
 		s.curDomain = d
 		s.curUrl = url
 		return true

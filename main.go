@@ -140,12 +140,24 @@ func main() {
 			logger.Error.Fatal(err)
 		}
 		for i := range links {
-			if err := d.CanDownload(&page.Page{URL: links[i]}); err != nil {
+			l := page.New(links[i])
+
+			if err := d.CanDownload(l); err != nil {
+				continue
+			}
+
+			if store.GetPage(links[i], new(page.Page)) != storage.ErrNotFound {
+				logger.Warn.Printf("Already downloaded %s", links[i])
 				continue
 			}
 
 			if err := sch.Add(links[i]); err != nil {
 				logger.Warn.Printf("Error adding %s: %s", links[i], err)
+				continue
+			}
+
+			if err := sch.Update(l); err != nil {
+				logger.Warn.Printf("Error updating %s: %s", links[i], err)
 				continue
 			}
 

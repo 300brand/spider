@@ -336,9 +336,10 @@ func (s *MySQL) SavePage(p *page.Page) (err error) {
 			VALUES
 				(?,   ?,      ?,               ?,             ?,             ?       )
 			ON DUPLICATE KEY UPDATE
-				last_download = ?,
-				last_modified = IF(checksum = ?, last_modified, ?),
-				checksum      = ?
+				first_download = ?,
+				last_download  = ?,
+				last_modified  = IF(checksum = ?, last_modified, ?),
+				checksum       = ?
 		`,
 		// INSERT INTO
 		p.URL,
@@ -348,6 +349,7 @@ func (s *MySQL) SavePage(p *page.Page) (err error) {
 		time.Now().UnixNano(),
 		p.Checksum,
 		// ON DUPLICATE KEY UPDATE
+		p.FirstDownload.UnixNano(),
 		p.LastDownload.UnixNano(),
 		p.Checksum, time.Now().UnixNano(),
 		p.Checksum,

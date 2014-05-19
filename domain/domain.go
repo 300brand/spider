@@ -16,7 +16,7 @@ type Domain struct {
 	URL         string
 	Include     []string      // Regex path inclusions from config
 	Exclude     []string      // Regex path exclusions from config
-	StartPoints []string      // Paths to being when link-spidering completes
+	StartPoints []string      // Paths to begin when link-spidering completes
 	Delay       time.Duration // Delay between GETs to domain (15s)
 	Redownload  time.Duration // Delay between re-downloading pages (3hr)
 	domainName  string
@@ -108,6 +108,18 @@ func (d *Domain) GetURL() *url.URL {
 		d.url.Path = "/"
 	}
 	return d.url
+}
+
+func (d *Domain) IsStartPoint(s string) bool {
+	if len(d.StartPoints) == 0 {
+		return d.GetURL().String() == s
+	}
+	for i := range d.StartPoints {
+		if d.StartPoints[i] == s {
+			return true
+		}
+	}
+	return false
 }
 
 func (d *Domain) UpdateRegexpRules() {

@@ -2,6 +2,7 @@ package scheduler
 
 import (
 	"errors"
+	"github.com/300brand/logger"
 	"github.com/300brand/spider/config"
 	"github.com/300brand/spider/domain"
 	"github.com/300brand/spider/page"
@@ -79,30 +80,63 @@ func (s *Scheduler) Next() bool {
 		return false
 	}
 
+	var d *domain.Domain
 	for {
+		// Wait for the next domain to surface
 		select {
-		case d := <-s.notify:
-			url, err := s.queues[d.Domain()].Dequeue()
-			switch err {
-			case nil:
-			case queue.ErrEmpty:
+		case d = <-s.notify:
+		case <-s.shutdown:
+			return false
+		}
+
+		var url string
+		var err error
+		p := new(page.Page)
+		for {
+			url, err = s.queues[d.Domain()].Dequeue()
+
+			logger.Info.Printf("Got %s from queue", url)
+			if err == queue.ErrEmpty {
 				if s.once {
 					s.Stop()
 					return false
 				}
-				// When the queue is (finally) empty, start over from the top
+				// When the queue is empty, start over from the top
 				s.restart(d)
+			}
+
+			if err != queue.ErrEmpty && err != nil {
+				s.err = err
+				return false
+			}
+
+			if d.IsStartPoint(url) {
+				// Break out of fetch-loop and use startpoint as next URL
+				logger.Info.Printf("%s is a startpoint", url)
+				break
+			}
+
+			// Look into DB to see if page exists (should probably be a
+			// separate method)
+			switch s.store.GetPage(url, p) {
+			case nil:
+				// Page found, look for next page
+				logger.Warn.Printf("%s found, refetching from queue", url)
 				continue
+			case storage.ErrNotFound:
+				// Page not found, use as next URL
+				logger.Info.Printf("%s not previously downloaded", url)
+				goto ProcessURL
 			default:
 				s.err = err
 				return false
 			}
-			s.curDomain = d
-			s.curUrl = url
-			return true
-		case <-s.shutdown:
-			return false
 		}
+
+	ProcessURL:
+		s.curDomain = d
+		s.curUrl = url
+		return true
 	}
 	return false
 }

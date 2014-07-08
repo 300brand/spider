@@ -6,9 +6,10 @@ import (
 )
 
 type Command struct {
-	U     *url.URL
-	M     string
-	Depth int
+	U       *url.URL
+	M       string
+	Depth   int
+	Retries int
 }
 
 var _ fetchbot.Command = new(Command)

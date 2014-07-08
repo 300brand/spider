@@ -12,21 +12,35 @@ import (
 
 var (
 	mu sync.Mutex
+
+	MaxDepth   = flag.Int("maxdepth", 1, "Maximum depth to descend past start page")
+	MaxRetries = flag.Int("retries", 3, "Number of retries before succumbing to failure")
 )
 
 func main() {
 	flag.Parse()
 
-	u, err := url.Parse(flag.Arg(0))
-	if err != nil {
-		logger.Error.Printf("url.Parse: %s", err)
-		return
-	}
-
 	mux := fetchbot.NewMux()
 
 	mux.HandleErrors(fetchbot.HandlerFunc(func(ctx *fetchbot.Context, res *http.Response, err error) {
-		logger.Error.Printf("%s %s - %s\n", ctx.Cmd.Method(), ctx.Cmd.URL(), err)
+		logger.Warn.Printf("%s", err)
+
+		cmd, ok := ctx.Cmd.(*Command)
+		if !ok {
+			logger.Error.Fatalf("ctx.Cmd is not of type Command: %#v", ctx.Cmd)
+		}
+
+		if cmd.Retries >= *MaxRetries {
+			logger.Error.Printf("Max retries (%d) for %s %s", *MaxRetries, cmd.Method(), cmd.URL())
+			return
+		}
+
+		cmd.Retries++
+		logger.Debug.Printf("RETRY [%d] %s %s", cmd.Retries, cmd.Method(), cmd.URL())
+		if err = ctx.Q.Send(cmd); err != nil {
+			logger.Error.Printf("Error requeuing: %s", err)
+		}
+
 	}))
 
 	// Handle GET requests for html responses, to parse the body and enqueue all
@@ -44,7 +58,7 @@ func main() {
 			return
 		}
 
-		if cmd.Depth < 1 {
+		if cmd.Depth < *MaxDepth {
 			// Enqueue all links as HEAD requests
 			enqueueLinks(ctx, doc)
 		}
@@ -52,7 +66,7 @@ func main() {
 
 	// Handle HEAD requests for html responses coming from the source host - we
 	// don't want to crawl links from other hosts.
-	mux.Response().Method("HEAD").Host(u.Host).ContentType("text/html").Handler(fetchbot.HandlerFunc(func(ctx *fetchbot.Context, res *http.Response, err error) {
+	mux.Response().Method("HEAD").ContentType("text/html").Handler(fetchbot.HandlerFunc(func(ctx *fetchbot.Context, res *http.Response, err error) {
 		cmd, ok := ctx.Cmd.(*Command)
 		if !ok {
 			logger.Error.Fatalf("ctx.Cmd is not of type Command: %#v", ctx.Cmd)
@@ -68,9 +82,22 @@ func main() {
 	bot := fetchbot.New(handler)
 	queue := bot.Start()
 	// Start queue
-	if err := queue.Send(&Command{U: u, M: "GET"}); err != nil {
-		logger.Error.Printf("queue.SendStringGet(%s): %s", u, err)
-		return
+	for _, cfg := range filters {
+
+		u, err := url.Parse(cfg.Start)
+		if err != nil {
+			logger.Error.Printf("url.Parse: %s", err)
+			return
+		}
+
+		cmd := &Command{
+			U: u,
+			M: "GET",
+		}
+		if err := queue.Send(cmd); err != nil {
+			logger.Error.Printf("queue.Send(%#v): %s", cmd, err)
+			return
+		}
 	}
 	queue.Block()
 }
@@ -79,7 +106,7 @@ func main() {
 func logHandler(wrapped fetchbot.Handler) fetchbot.Handler {
 	return fetchbot.HandlerFunc(func(ctx *fetchbot.Context, res *http.Response, err error) {
 		if err == nil {
-			logger.Info.Printf("[%d] %s %s - %s\n", res.StatusCode, ctx.Cmd.Method(), ctx.Cmd.URL(), res.Header.Get("Content-Type"))
+			logger.Info.Printf("%s [%d] %s - %s\n", ctx.Cmd.Method(), res.StatusCode, ctx.Cmd.URL(), res.Header.Get("Content-Type"))
 		}
 		wrapped.Handle(ctx, res, err)
 	})

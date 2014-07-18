@@ -20,32 +20,32 @@ var filters = map[string]Filter{
 		},
 		Reject: []*regexp.Regexp{},
 	},
-	"www.ccweek.com": Filter{
-		Start:       "http://www.ccweek.com/",
-		CSSSelector: "a[href]",
-		Accept: []*regexp.Regexp{
-			regexp.MustCompile(`^/article-\d{4,}`),
-		},
-		Reject: []*regexp.Regexp{},
-	},
-	"www.pipelinepub.com": Filter{
-		Start:       "http://www.pipelinepub.com/",
-		CSSSelector: ".leftsidelinks a[href]",
-		Accept:      []*regexp.Regexp{},
-		Reject:      []*regexp.Regexp{},
-	},
-	"www.healthmgttech.com": Filter{
-		Start:       "http://www.healthmgttech.com/",
-		CSSSelector: "a[href]",
-		Accept: []*regexp.Regexp{
-			regexp.MustCompile(`^/articles/\d{6}/`),
-			regexp.MustCompile(`/news/.`),
-			regexp.MustCompile(`/blogs/.`),
-			regexp.MustCompile(`/online-only/.`),
-		},
-		Reject: []*regexp.Regexp{
-			regexp.MustCompile(`/news/all-news.php`),
-			regexp.MustCompile(`/articles/\d{6}/toc.php`),
-		},
-	},
+	// "www.ccweek.com": Filter{
+	// 	Start:       "http://www.ccweek.com/",
+	// 	CSSSelector: "a[href]",
+	// 	Accept: []*regexp.Regexp{
+	// 		regexp.MustCompile(`^/article-\d{4,}`),
+	// 	},
+	// 	Reject: []*regexp.Regexp{},
+	// },
+	// "www.pipelinepub.com": Filter{
+	// 	Start:       "http://www.pipelinepub.com/",
+	// 	CSSSelector: ".leftsidelinks a[href]",
+	// 	Accept:      []*regexp.Regexp{},
+	// 	Reject:      []*regexp.Regexp{},
+	// },
+	// "www.healthmgttech.com": Filter{
+	// 	Start:       "http://www.healthmgttech.com/",
+	// 	CSSSelector: "a[href]",
+	// 	Accept: []*regexp.Regexp{
+	// 		regexp.MustCompile(`^/articles/\d{6}/`),
+	// 		regexp.MustCompile(`/news/.`),
+	// 		regexp.MustCompile(`/blogs/.`),
+	// 		regexp.MustCompile(`/online-only/.`),
+	// 	},
+	// 	Reject: []*regexp.Regexp{
+	// 		regexp.MustCompile(`/news/all-news.php`),
+	// 		regexp.MustCompile(`/articles/\d{6}/toc.php`),
+	// 	},
+	// },
 }

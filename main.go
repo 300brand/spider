@@ -15,6 +15,7 @@ var (
 
 	MaxDepth   = flag.Int("maxdepth", 1, "Maximum depth to descend past start page")
 	MaxRetries = flag.Int("retries", 3, "Number of retries before succumbing to failure")
+	MySQLDSN   = flag.String("mysql", "root:@tcp(localhost:49159)/spider", "MySQL DSN")
 )
 
 func main() {

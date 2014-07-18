@@ -10,6 +10,7 @@ type Command struct {
 	M       string
 	Depth   int
 	Retries int
+	Id      interface{}
 }
 
 var _ fetchbot.Command = new(Command)

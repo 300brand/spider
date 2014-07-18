@@ -2,19 +2,24 @@ package main
 
 import (
 	"regexp"
+	"time"
 )
 
 type Filter struct {
+	Ident       string
 	Start       string
 	CSSSelector string
+	Restart     time.Duration
 	Accept      []*regexp.Regexp
 	Reject      []*regexp.Regexp
 }
 
 var filters = map[string]Filter{
 	"www.tmcnet.com": Filter{
+		Ident:       "tmcnet",
 		Start:       "http://www.tmcnet.com/voip/",
 		CSSSelector: "a[href]",
+		Restart:     time.Minute,
 		Accept: []*regexp.Regexp{
 			regexp.MustCompile(`^/voip/(departments|columns|features)/articles/`),
 		},

@@ -2,6 +2,7 @@ package main
 
 import (
 	"database/sql"
+	"errors"
 
 	_ "github.com/go-sql-driver/mysql"
 )
@@ -22,6 +23,8 @@ type MySQL struct {
 		Save    *sql.Stmt
 	}
 }
+
+var ErrNoNext = errors.New("Nothing next in queue")
 
 func DialMySQL(dsn string, name string) (db *MySQL, err error) {
 	db = new(MySQL)
@@ -46,9 +49,12 @@ func (db *MySQL) Next() (id interface{}, url string, err error) {
 	if _, err = db.db.Exec(`LOCK TABLES ` + db.Table + ` WRITE`); err != nil {
 		return
 	}
-	defer func() { _, err = db.db.Exec(`UNLOCK TABLES`) }()
+	defer db.db.Exec(`UNLOCK TABLES`)
 	var intId uint64
 	if err = db.stmt.NextSel.QueryRow().Scan(&intId, &url); err != nil {
+		if err == sql.ErrNoRows {
+			err = ErrNoNext
+		}
 		return
 	}
 	id = intId

@@ -26,12 +26,17 @@ var (
 )
 
 // Intended to run as go dequeue(domain)
-func dequeue(bot *fetchbot.Fetcher, filter *Filter) {
+func dequeue(bot *fetchbot.Fetcher, filter Filter) {
 	queue := bot.Start()
 	u, err := url.Parse(filter.Start)
 	if err != nil {
 		logger.Error.Fatalf("url.Parse: %s", err)
 	}
+	store, ok := stores[filter.Ident]
+	if !ok {
+		logger.Error.Fatalf("No store for %s", filter.Ident)
+	}
+
 	// Auto re-queue startpoint
 	go func() {
 		for {
@@ -46,11 +51,30 @@ func dequeue(bot *fetchbot.Fetcher, filter *Filter) {
 		}
 	}()
 
-	// Dequeue from
-	// for {
-
-	// }
-	queue.Block()
+	// Dequeue from store; enqueue to bot queue
+	for {
+		id, rawurl, err := store.Next()
+		switch {
+		case err == ErrNoNext:
+			logger.Trace.Printf("[%s] Nothing in queue; waiting %s", filter.Ident, filter.Restart)
+			<-time.After(filter.Restart)
+			continue
+		case err != nil:
+			logger.Error.Printf("[%s] Error fetching next: %s", filter.Ident, err)
+			break
+		}
+		cmd := &Command{
+			M:     "GET",
+			Id:    id,
+			Depth: 1,
+		}
+		cmd.U, _ = url.Parse(rawurl)
+		if err := queue.Send(cmd); err != nil {
+			logger.Error.Printf("[%s] Error queuing: %s", filter.Ident, err)
+			break
+		}
+		<-time.After(bot.CrawlDelay)
+	}
 }
 
 func enqueueLinks(ctx *fetchbot.Context, doc *goquery.Document) {
@@ -72,7 +96,6 @@ func enqueueLinks(ctx *fetchbot.Context, doc *goquery.Document) {
 		logger.Warn.Printf("No store defined for %s, skipping.", filter.Ident)
 		return
 	}
-	logger.Debug.Printf("%+v", store)
 
 	doc.Find(filter.CSSSelector).Each(func(i int, s *goquery.Selection) {
 		val, _ := s.Attr("href")
@@ -135,6 +158,13 @@ func errorHandler(ctx *fetchbot.Context, res *http.Response, err error) {
 }
 
 func getHandler(ctx *fetchbot.Context, res *http.Response, err error) {
+	switch sc := res.StatusCode; sc {
+	case 200:
+	default:
+		logger.Warn.Printf("ERROR [%d] Leaving for requeue %s", sc, ctx.Cmd.URL())
+		return
+	}
+
 	cmd, ok := ctx.Cmd.(*Command)
 	if !ok {
 		logger.Error.Fatalf("ctx.Cmd is not of type Command: %#v", ctx.Cmd)
@@ -148,8 +178,24 @@ func getHandler(ctx *fetchbot.Context, res *http.Response, err error) {
 	}
 
 	if cmd.Depth < *MaxDepth {
-		// Enqueue all links as HEAD requests
+		// Enqueue all links into store
 		enqueueLinks(ctx, doc)
+		return
+	}
+
+	filter, ok := filters[cmd.URL().Host]
+	if !ok {
+		logger.Error.Fatalf("No filter defined for %s", ctx.Cmd.URL().Host)
+	}
+
+	store, ok := stores[filter.Ident]
+	if !ok {
+		logger.Warn.Printf("No store defined for %s, skipping.", filter.Ident)
+		return
+	}
+
+	if err := store.Save(cmd); err != nil {
+		logger.Error.Printf("[%s] Error saving: %s", filter.Ident, err)
 	}
 }
 
@@ -157,7 +203,7 @@ func getHandler(ctx *fetchbot.Context, res *http.Response, err error) {
 func logHandler(wrapped fetchbot.Handler) fetchbot.Handler {
 	return fetchbot.HandlerFunc(func(ctx *fetchbot.Context, res *http.Response, err error) {
 		if err == nil {
-			logger.Info.Printf("%s [%d] %s - %s\n", ctx.Cmd.Method(), res.StatusCode, ctx.Cmd.URL(), res.Header.Get("Content-Type"))
+			logger.Info.Printf("%s [%d] %s - %s", ctx.Cmd.Method(), res.StatusCode, ctx.Cmd.URL(), res.Header.Get("Content-Type"))
 		}
 		wrapped.Handle(ctx, res, err)
 	})
@@ -173,14 +219,15 @@ func main() {
 	mux.Response().Method("GET").ContentType("text/html").Handler(fetchbot.HandlerFunc(getHandler))
 
 	handler := logHandler(mux)
-	bot := fetchbot.New(handler)
 	// Start queues
 	for _, filter := range filters {
 		var err error
 		if stores[filter.Ident], err = DialMySQL(*MySQLDSN, filter.Ident); err != nil {
 			logger.Error.Fatalf("DialMySQL: %s", err)
 		}
-		go dequeue(bot, &filter)
+		logger.Debug.Printf("%+v", stores)
+		bot := fetchbot.New(handler)
+		go dequeue(bot, filter)
 	}
 	select {}
 }

@@ -69,8 +69,7 @@ func (db *MySQL) Save(cmd *Command) (err error) {
 		return
 	}
 	defer func() { _, err = db.db.Exec(`UNLOCK TABLES`) }()
-	title := "No Title Yet"
-	_, err = db.stmt.Save.Exec(cmd.URL().String(), title, cmd.Id)
+	_, err = db.stmt.Save.Exec(cmd.URL().String(), cmd.Title, cmd.Id)
 	return
 }
 

@@ -194,6 +194,12 @@ func getHandler(ctx *fetchbot.Context, res *http.Response, err error) {
 		return
 	}
 
+	cmd.Title = "No title tag"
+	titleNode := doc.Find("title")
+	if titleNode.Length() > 0 {
+		cmd.Title = titleNode.First().Text()
+	}
+
 	if err := store.Save(cmd); err != nil {
 		logger.Error.Printf("[%s] Error saving: %s", filter.Ident, err)
 	}

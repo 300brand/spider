@@ -28,3 +28,21 @@ func TestMarshal(t *testing.T) {
 	}
 	t.Logf("JSON:\n%s", b)
 }
+
+func TestUnmarshal(t *testing.T) {
+	data := `{
+		"Ident": "moo",
+		"Start": "http://moo.cow.net",
+		"CSSLinks": "a[href]",
+		"CSSTitle": "title",
+		"RestartMins": 5,
+		"Accept": [ "^/me", "^/me/too" ],
+		"Reject": [ "reject me" ]
+	}`
+
+	r := new(Rule)
+	if err := json.Unmarshal([]byte(data), r); err != nil {
+		t.Fatal(err)
+	}
+	t.Logf("Rule:\n%+v", r)
+}

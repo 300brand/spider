@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"github.com/300brand/logger"
+	"github.com/300brand/spider/rule"
 	"github.com/PuerkitoBio/fetchbot"
 	"github.com/PuerkitoBio/goquery"
 	"net/http"
@@ -14,6 +15,7 @@ import (
 var (
 	mu     sync.Mutex
 	stores = make(map[string]*MySQL)
+	rules  = make(map[string]*rule.Rule)
 
 	MaxDepth   = flag.Int("maxdepth", 1, "Maximum depth to descend past start page")
 	MaxRetries = flag.Int("retries", 3, "Number of retries before succumbing to failure")
@@ -26,54 +28,54 @@ var (
 )
 
 // Intended to run as go dequeue(domain)
-func dequeue(bot *fetchbot.Fetcher, filter Filter) {
+func dequeue(bot *fetchbot.Fetcher, rule *rule.Rule, kill chan bool) {
 	queue := bot.Start()
-	u, err := url.Parse(filter.Start)
+	u, err := url.Parse(rule.Start)
 	if err != nil {
 		logger.Error.Fatalf("url.Parse: %s", err)
 	}
-	store, ok := stores[filter.Ident]
+	store, ok := stores[rule.Ident]
 	if !ok {
-		logger.Error.Fatalf("No store for %s", filter.Ident)
+		logger.Error.Fatalf("No store for %s", rule.Ident)
 	}
 
-	// Auto re-queue startpoint
-	go func() {
-		for {
-			logger.Info.Printf("[%s] Queuing startpoint %s", filter.Ident, u)
+	for {
+		select {
+		case <-time.After(rule.Restart):
+			// Auto re-queue startpoint
+			logger.Info.Printf("[%s] Queuing startpoint %s", rule.Ident, u)
 			cmd := &Command{U: u, M: "GET"}
 			if err := queue.Send(cmd); err != nil {
 				logger.Error.Printf("queue.Send(%#v): %s", cmd, err)
 				continue
 			}
-			logger.Info.Printf("[%s] Startpoint requeue in %s, %s", filter.Ident, filter.Restart, time.Now().Add(filter.Restart))
-			<-time.After(filter.Restart)
+			logger.Info.Printf("[%s] Startpoint requeue in %s, %s", rule.Ident, rule.Restart, time.Now().Add(rule.Restart))
+		case <-time.After(bot.CrawlDelay):
+			// Dequeue from store; enqueue to bot queue
+			id, rawurl, err := store.Next()
+			switch {
+			case err == ErrNoNext:
+				logger.Trace.Printf("[%s] Nothing in queue; waiting %s", rule.Ident, rule.Restart)
+				<-time.After(rule.Restart)
+				continue
+			case err != nil:
+				logger.Error.Printf("[%s] Error fetching next: %s", rule.Ident, err)
+				continue
+			}
+			cmd := &Command{
+				M:     "GET",
+				Id:    id,
+				Depth: 1,
+			}
+			cmd.U, _ = url.Parse(rawurl)
+			if err := queue.Send(cmd); err != nil {
+				logger.Error.Printf("[%s] Error queuing: %s", rule.Ident, err)
+			}
+		case <-kill:
+			logger.Trace.Printf("[%s] Shutting down dequeue", rule.Ident)
+			queue.Close()
+			return
 		}
-	}()
-
-	// Dequeue from store; enqueue to bot queue
-	for {
-		id, rawurl, err := store.Next()
-		switch {
-		case err == ErrNoNext:
-			logger.Trace.Printf("[%s] Nothing in queue; waiting %s", filter.Ident, filter.Restart)
-			<-time.After(filter.Restart)
-			continue
-		case err != nil:
-			logger.Error.Printf("[%s] Error fetching next: %s", filter.Ident, err)
-			break
-		}
-		cmd := &Command{
-			M:     "GET",
-			Id:    id,
-			Depth: 1,
-		}
-		cmd.U, _ = url.Parse(rawurl)
-		if err := queue.Send(cmd); err != nil {
-			logger.Error.Printf("[%s] Error queuing: %s", filter.Ident, err)
-			break
-		}
-		<-time.After(bot.CrawlDelay)
 	}
 }
 
@@ -86,55 +88,28 @@ func enqueueLinks(ctx *fetchbot.Context, doc *goquery.Document) {
 		logger.Error.Fatalf("ctx.Cmd is not of type Command: %#v", ctx.Cmd)
 	}
 
-	filter, ok := filters[cmd.URL().Host]
+	rule, ok := rules[cmd.URL().Host]
 	if !ok {
-		logger.Error.Fatalf("No filter defined for %s", ctx.Cmd.URL().Host)
+		logger.Error.Fatalf("No rule defined for %s", cmd.URL().Host)
 	}
 
-	store, ok := stores[filter.Ident]
+	store, ok := stores[rule.Ident]
 	if !ok {
-		logger.Warn.Printf("No store defined for %s, skipping.", filter.Ident)
+		logger.Warn.Printf("[%s] No store defined, skipping.", rule.Ident)
 		return
 	}
 
-	doc.Find(filter.CSSSelector).Each(func(i int, s *goquery.Selection) {
-		val, _ := s.Attr("href")
-		// Resolve address
-		u, err := ctx.Cmd.URL().Parse(val)
-		if err != nil {
-			logger.Error.Printf("[%s] Resolve URL %s - %s", filter.Ident, val, err)
-			return
-		}
+	links, err := rule.ExtractLinks(doc, cmd.URL())
+	if err != nil {
+		logger.Error.Printf("[%s] rule.ExtractLinks(%s): %s", rule.Ident, cmd.URL(), err)
+		return
+	}
 
-		// Reject
-		for _, re := range filter.Reject {
-			if re.MatchString(u.Path) {
-				logger.Warn.Printf("[%s] REJECT %s", filter.Ident, u)
-				return
-			}
+	for _, u := range links.Accept {
+		if err := store.Enqueue(u.String()); err != nil {
+			logger.Error.Printf("[%s] store.Enqueue(%s): %s", rule.Ident, u, err)
 		}
-
-		// Accept - if none, accept all
-		if len(filter.Accept) == 0 {
-			logger.Info.Printf("[%s] ACCEPT %s with *", filter.Ident, u)
-			if err := store.Enqueue(u.String()); err != nil {
-				logger.Error.Printf("[%s] Enqueue head: %s - %s", filter.Ident, u, err)
-			}
-			return
-		}
-
-		// Accept - only accept matching
-		for _, re := range filter.Accept {
-			if re.MatchString(u.Path) {
-				logger.Info.Printf("[%s] ACCEPT %s with %s", filter.Ident, u, re.String())
-				if err := store.Enqueue(u.String()); err != nil {
-					logger.Error.Printf("[%s] Enqueue head: %s - %s", filter.Ident, u, err)
-					return
-				}
-			}
-		}
-
-	})
+	}
 }
 
 func errorHandler(ctx *fetchbot.Context, res *http.Response, err error) {
@@ -183,25 +158,21 @@ func getHandler(ctx *fetchbot.Context, res *http.Response, err error) {
 		return
 	}
 
-	filter, ok := filters[cmd.URL().Host]
+	rule, ok := rules[cmd.URL().Host]
 	if !ok {
-		logger.Error.Fatalf("No filter defined for %s", ctx.Cmd.URL().Host)
+		logger.Error.Fatalf("No rule defined for %s", cmd.URL().Host)
 	}
 
-	store, ok := stores[filter.Ident]
+	store, ok := stores[rule.Ident]
 	if !ok {
-		logger.Warn.Printf("No store defined for %s, skipping.", filter.Ident)
+		logger.Warn.Printf("[%s] No store defined, skipping.", rule.Ident)
 		return
 	}
 
-	cmd.Title = "No title tag"
-	titleNode := doc.Find("title")
-	if titleNode.Length() > 0 {
-		cmd.Title = titleNode.First().Text()
-	}
+	cmd.Title = rule.ExtractTitle(doc)
 
 	if err := store.Save(cmd); err != nil {
-		logger.Error.Printf("[%s] Error saving: %s", filter.Ident, err)
+		logger.Error.Printf("[%s] Error saving: %s", rule.Ident, err)
 	}
 }
 
@@ -215,6 +186,22 @@ func logHandler(wrapped fetchbot.Handler) fetchbot.Handler {
 	})
 }
 
+func runQueues(handler fetchbot.Handler) {
+
+	// Start queues
+	for _, rule := range rules {
+		var err error
+		if stores[rule.Ident], err = DialMySQL(*MySQLDSN, rule.Ident); err != nil {
+			logger.Error.Fatalf("DialMySQL: %s", err)
+		}
+		logger.Debug.Printf("%+v", stores)
+		bot := fetchbot.New(handler)
+		killChan := make(chan bool)
+		go dequeue(bot, rule, killChan)
+	}
+	select {}
+}
+
 func main() {
 	flag.Parse()
 
@@ -225,15 +212,6 @@ func main() {
 	mux.Response().Method("GET").ContentType("text/html").Handler(fetchbot.HandlerFunc(getHandler))
 
 	handler := logHandler(mux)
-	// Start queues
-	for _, filter := range filters {
-		var err error
-		if stores[filter.Ident], err = DialMySQL(*MySQLDSN, filter.Ident); err != nil {
-			logger.Error.Fatalf("DialMySQL: %s", err)
-		}
-		logger.Debug.Printf("%+v", stores)
-		bot := fetchbot.New(handler)
-		go dequeue(bot, filter)
-	}
-	select {}
+
+	runQueues(handler)
 }

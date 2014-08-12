@@ -1,5 +1,6 @@
 package main
 
+/*
 import (
 	"regexp"
 	"time"
@@ -60,3 +61,4 @@ var filters = map[string]Filter{
 	// 	},
 	// },
 }
+*/

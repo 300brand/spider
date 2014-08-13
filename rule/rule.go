@@ -14,6 +14,7 @@ type Rule struct {
 	Start    string
 	CSSLinks string
 	CSSTitle string
+	MaxDepth int
 	Restart  time.Duration
 	Accept   []*regexp.Regexp
 	Reject   []*regexp.Regexp
@@ -30,6 +31,7 @@ type marshalRule struct {
 	Start       string
 	CSSLinks    string
 	CSSTitle    string
+	MaxDepth    int
 	RestartMins int
 	Accept      []string
 	Reject      []string
@@ -117,6 +119,7 @@ func (r *Rule) MarshalJSON() (data []byte, err error) {
 		Start:       r.Start,
 		CSSLinks:    r.CSSLinks,
 		CSSTitle:    r.CSSTitle,
+		MaxDepth:    r.MaxDepth,
 		RestartMins: int(r.Restart.Minutes()),
 		Accept:      make([]string, len(r.Accept)),
 		Reject:      make([]string, len(r.Reject)),
@@ -144,6 +147,7 @@ func (r *Rule) UnmarshalJSON(data []byte) (err error) {
 	r.Start = mr.Start
 	r.CSSLinks = mr.CSSLinks
 	r.CSSTitle = mr.CSSTitle
+	r.MaxDepth = mr.MaxDepth
 	r.Restart = time.Duration(mr.RestartMins) * time.Minute
 	r.Accept = make([]*regexp.Regexp, len(mr.Accept))
 	r.Reject = make([]*regexp.Regexp, len(mr.Reject))

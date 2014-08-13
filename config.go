@@ -18,6 +18,8 @@ type Config struct {
 	}
 }
 
+var configLastCheck time.Time
+
 func DialConfig(dsn string) (db *Config, err error) {
 	db = new(Config)
 	if db.db, err = sql.Open("mysql", dsn); err != nil {
@@ -28,11 +30,11 @@ func DialConfig(dsn string) (db *Config, err error) {
 }
 
 func (db *Config) Close() (err error) {
-	return db.Close()
+	return db.db.Close()
 }
 
 func (db *Config) Rules() (rules map[string]*rule.Rule, err error) {
-	row := db.stmt.Check.QueryRow(db.lastCheck)
+	row := db.stmt.Check.QueryRow(configLastCheck)
 	var count int
 	if err = row.Scan(&count); err != nil || count == 0 {
 		return
@@ -47,7 +49,7 @@ func (db *Config) Rules() (rules map[string]*rule.Rule, err error) {
 	for rows.Next() {
 		var host string
 		var data []byte
-		if err = rows.Scan(host, data); err != nil {
+		if err = rows.Scan(&host, &data); err != nil {
 			return
 		}
 		r := new(rule.Rule)
@@ -56,8 +58,7 @@ func (db *Config) Rules() (rules map[string]*rule.Rule, err error) {
 		}
 		rules[host] = r
 	}
-
-	db.lastCheck = time.Now()
+	configLastCheck = time.Now()
 	return
 }
 
@@ -65,7 +66,7 @@ func (db *Config) prebuild() (err error) {
 	queries := []string{
 		`CREATE TABLE IF NOT EXISTS rules (
 			host    VARCHAR(128) NOT NULL DEFAULT '',
-			json    TEXT NOT NULL DEFAULT '{}',
+			json    TEXT NOT NULL,
 			updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
 			PRIMARY KEY (host)
 		)`,

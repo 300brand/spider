@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"github.com/300brand/logger"
 	"github.com/300brand/spider/rule"
 	"github.com/PuerkitoBio/fetchbot"
@@ -13,11 +14,9 @@ import (
 )
 
 var (
-	mu     sync.Mutex
-	stores = make(map[string]*MySQL)
-	rules  = make(map[string]*rule.Rule)
+	mu    sync.Mutex
+	rules = make(map[string]*rule.Rule)
 
-	MaxDepth   = flag.Int("maxdepth", 1, "Maximum depth to descend past start page")
 	MaxRetries = flag.Int("retries", 3, "Number of retries before succumbing to failure")
 	MySQLDSN   = flag.String("mysql", "root:@tcp(localhost:49159)/spider", "MySQL DSN")
 )
@@ -32,16 +31,23 @@ func dequeue(bot *fetchbot.Fetcher, rule *rule.Rule, kill chan bool) {
 	queue := bot.Start()
 	u, err := url.Parse(rule.Start)
 	if err != nil {
-		logger.Error.Fatalf("url.Parse: %s", err)
-	}
-	store, ok := stores[rule.Ident]
-	if !ok {
-		logger.Error.Fatalf("No store for %s", rule.Ident)
+		logger.Error.Printf("[%s] url.Parse: %s", rule.Ident, err)
+		return
 	}
 
+	store, err := DialMySQL(*MySQLDSN, rule.Ident)
+	if err != nil {
+		logger.Error.Printf("[%s] DialMySQL: %s", rule.Ident, err)
+		return
+	}
+	defer store.Close()
+
+	var restart time.Duration
+	var crawlDelay = bot.CrawlDelay
 	for {
 		select {
-		case <-time.After(rule.Restart):
+		case <-time.After(restart):
+			restart = rule.Restart
 			// Auto re-queue startpoint
 			logger.Info.Printf("[%s] Queuing startpoint %s", rule.Ident, u)
 			cmd := &Command{U: u, M: "GET"}
@@ -50,13 +56,14 @@ func dequeue(bot *fetchbot.Fetcher, rule *rule.Rule, kill chan bool) {
 				continue
 			}
 			logger.Info.Printf("[%s] Startpoint requeue in %s, %s", rule.Ident, rule.Restart, time.Now().Add(rule.Restart))
-		case <-time.After(bot.CrawlDelay):
+		case <-time.After(crawlDelay):
+			crawlDelay = bot.CrawlDelay
 			// Dequeue from store; enqueue to bot queue
 			id, rawurl, err := store.Next()
 			switch {
 			case err == ErrNoNext:
 				logger.Trace.Printf("[%s] Nothing in queue; waiting %s", rule.Ident, rule.Restart)
-				<-time.After(rule.Restart)
+				crawlDelay = rule.Restart
 				continue
 			case err != nil:
 				logger.Error.Printf("[%s] Error fetching next: %s", rule.Ident, err)
@@ -93,11 +100,12 @@ func enqueueLinks(ctx *fetchbot.Context, doc *goquery.Document) {
 		logger.Error.Fatalf("No rule defined for %s", cmd.URL().Host)
 	}
 
-	store, ok := stores[rule.Ident]
-	if !ok {
-		logger.Warn.Printf("[%s] No store defined, skipping.", rule.Ident)
+	store, err := DialMySQL(*MySQLDSN, rule.Ident)
+	if err != nil {
+		logger.Error.Printf("[%s] DialMySQL: %s", rule.Ident, err)
 		return
 	}
+	defer store.Close()
 
 	links, err := rule.ExtractLinks(doc, cmd.URL())
 	if err != nil {
@@ -152,22 +160,23 @@ func getHandler(ctx *fetchbot.Context, res *http.Response, err error) {
 		return
 	}
 
-	if cmd.Depth < *MaxDepth {
-		// Enqueue all links into store
-		enqueueLinks(ctx, doc)
-		return
-	}
-
 	rule, ok := rules[cmd.URL().Host]
 	if !ok {
 		logger.Error.Fatalf("No rule defined for %s", cmd.URL().Host)
 	}
 
-	store, ok := stores[rule.Ident]
-	if !ok {
-		logger.Warn.Printf("[%s] No store defined, skipping.", rule.Ident)
+	if cmd.Depth < rule.MaxDepth {
+		// Enqueue all links into store
+		enqueueLinks(ctx, doc)
 		return
 	}
+
+	store, err := DialMySQL(*MySQLDSN, rule.Ident)
+	if err != nil {
+		logger.Error.Printf("[%s] DialMySQL: %s", rule.Ident, err)
+		return
+	}
+	defer store.Close()
 
 	cmd.Title = rule.ExtractTitle(doc)
 
@@ -186,20 +195,45 @@ func logHandler(wrapped fetchbot.Handler) fetchbot.Handler {
 	})
 }
 
-func runQueues(handler fetchbot.Handler) {
-
-	// Start queues
-	for _, rule := range rules {
-		var err error
-		if stores[rule.Ident], err = DialMySQL(*MySQLDSN, rule.Ident); err != nil {
-			logger.Error.Fatalf("DialMySQL: %s", err)
+func runQueues(handler fetchbot.Handler) (kill chan bool) {
+	kill = make(chan bool)
+	killers := make(map[string]chan bool, len(rules))
+	go func() {
+		logger.Debug.Printf("runQueues: Waiting for kill signal")
+		<-kill
+		logger.Debug.Printf("runQueues: Received kill signal")
+		for host, ch := range killers {
+			logger.Debug.Printf("runQueues: Killing %s", host)
+			ch <- true
 		}
-		logger.Debug.Printf("%+v", stores)
+	}()
+	// Start queues
+	logger.Debug.Printf("runQueue: len(rules) = %d", len(rules))
+	for host, rule := range rules {
+		logger.Debug.Printf("runQueues: Starting %s", host)
+		killers[host] = make(chan bool)
 		bot := fetchbot.New(handler)
-		killChan := make(chan bool)
-		go dequeue(bot, rule, killChan)
+		logger.Debug.Printf("runQueues: go dequeue %s", host)
+		go dequeue(bot, rule, killers[host])
 	}
-	select {}
+	return
+}
+
+func setupRules(dsn string) (changed bool, newRules map[string]*rule.Rule, err error) {
+	defer func() {
+		if changed = newRules != nil; !changed {
+			newRules = rules
+		}
+	}()
+	c, err := DialConfig(*MySQLDSN)
+	if err != nil {
+		// At least use the existing rules
+		err = fmt.Errorf("DialConfig: %s", err)
+		return
+	}
+	defer c.Close()
+	newRules, err = c.Rules()
+	return
 }
 
 func main() {
@@ -213,5 +247,29 @@ func main() {
 
 	handler := logHandler(mux)
 
-	runQueues(handler)
+	var killChan chan bool
+	for {
+		changed, newRules, err := setupRules(*MySQLDSN)
+		if err != nil || newRules == nil {
+			logger.Error.Printf("setupRules: %s", err)
+			retry := 10 * time.Second
+			logger.Error.Printf("Waiting %s to retry", retry)
+			<-time.After(retry)
+			continue
+		}
+
+		if changed {
+			rules = newRules
+			logger.Info.Printf("Rule changes detected")
+			logger.Debug.Printf("New Rules: %v", rules)
+			if killChan != nil {
+				logger.Info.Printf("Killing spider")
+				killChan <- true
+				<-time.After(5 * time.Second)
+			}
+			killChan = runQueues(handler)
+			logger.Info.Printf("Queues started")
+		}
+		<-time.After(30 * time.Second)
+	}
 }

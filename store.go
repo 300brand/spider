@@ -37,7 +37,7 @@ func DialMySQL(dsn string, name string) (db *MySQL, err error) {
 }
 
 func (db *MySQL) Close() (err error) {
-	return db.Close()
+	return db.db.Close()
 }
 
 func (db *MySQL) Enqueue(url string) (err error) {
@@ -77,8 +77,8 @@ func (db *MySQL) prebuild() (err error) {
 	queries := []string{
 		`CREATE TABLE IF NOT EXISTS ` + db.Table + ` (
 			id      BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-			url     TEXT NOT NULL DEFAULT '',
-			title   TEXT NOT NULL DEFAULT '',
+			url     TEXT NOT NULL,
+			title   TEXT NOT NULL,
 			queue  	ENUM('QUEUED', 'PROCESSED') DEFAULT 'QUEUED',
 			requeue DATETIME NOT NULL,
 			added   DATETIME NOT NULL,

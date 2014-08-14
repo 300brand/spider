@@ -65,10 +65,12 @@ func (db *Config) Rules() (rules map[string]*rule.Rule, err error) {
 func (db *Config) prebuild() (err error) {
 	queries := []string{
 		`CREATE TABLE IF NOT EXISTS rules (
+			id      BIGINT NOT NULL AUTO_INCREMENT,
 			host    VARCHAR(128) NOT NULL DEFAULT '',
 			json    TEXT NOT NULL,
 			updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-			PRIMARY KEY (host)
+			PRIMARY KEY (id),
+			UNIQUE KEY (host)
 		)`,
 	}
 	for _, query := range queries {

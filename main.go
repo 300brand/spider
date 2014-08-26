@@ -213,6 +213,7 @@ func runQueues(handler fetchbot.Handler) (kill chan bool) {
 		logger.Debug.Printf("runQueues: Starting %s", host)
 		killers[host] = make(chan bool)
 		bot := fetchbot.New(handler)
+		bot.HttpClient = new(HTTPClient)
 		logger.Debug.Printf("runQueues: go dequeue %s", host)
 		go dequeue(bot, rule, killers[host])
 	}
